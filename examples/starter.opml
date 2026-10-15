@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head><title>松果 示例订阅</title></head>
+  <body>
+    <outline text="科技" title="科技">
+      <outline type="rss" text="阮一峰的网络日志" title="阮一峰的网络日志" xmlUrl="https://www.ruanyifeng.com/blog/atom.xml" htmlUrl="https://www.ruanyifeng.com/blog/"/>
+      <outline type="rss" text="少数派" title="少数派" xmlUrl="https://sspai.com/feed" htmlUrl="https://sspai.com"/>
+      <outline type="rss" text="小众软件" title="小众软件" xmlUrl="https://www.appinn.com/feed/" htmlUrl="https://www.appinn.com"/>
+      <outline type="rss" text="Hacker News 200+" title="Hacker News 200+" xmlUrl="https://hnrss.org/frontpage?points=200" htmlUrl="https://news.ycombinator.com"/>
+    </outline>
+    <outline text="资讯" title="资讯">
+      <outline type="rss" text="奇客Solidot" title="奇客Solidot" xmlUrl="https://www.solidot.org/index.rss" htmlUrl="https://www.solidot.org"/>
+    </outline>
+    <outline text="学校" title="学校">
+      <outline type="rss" text="交大教务处 · 通知通告" title="交大教务处 · 通知通告" xmlUrl="https://jwc.sjtu.edu.cn/xwtg/tztg.htm" htmlUrl="https://jwc.sjtu.edu.cn" acornKind="html" acornUrl="https://jwc.sjtu.edu.cn/xwtg/tztg.htm" acornConfig="{&quot;html&quot;:{&quot;item&quot;:&quot;div.Newslist &gt; ul &gt; li.clearfix&quot;,&quot;date&quot;:&quot;div.sj&quot;}}"/>
+    </outline>
+  </body>
+</opml>

@@ -1,0 +1,4 @@
+#!/bin/sh
+# Acorn 松果 command-line entry. Works from anywhere: resolves the project root from this script's location.
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
+exec node --disable-warning=ExperimentalWarning "$DIR/src/cli/main.ts" "$@"

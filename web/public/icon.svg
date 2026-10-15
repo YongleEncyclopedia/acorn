@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9a6634"/>
+      <stop offset="1" stop-color="#6c4220"/>
+    </linearGradient>
+    <clipPath id="cap"><path d="M132 238c0-74 56-124 124-124s124 50 124 124z"/></clipPath>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <path d="M256 118c-4-26 6-48 30-62" fill="none" stroke="#f3e7d3" stroke-width="20" stroke-linecap="round"/>
+  <path d="M132 238c0-74 56-124 124-124s124 50 124 124z" fill="#f3e7d3"/>
+  <g clip-path="url(#cap)" stroke="#9a6634" stroke-opacity=".38" stroke-width="7">
+    <path d="M100 150l200 200M140 110l200 200M180 70l200 200M60 190l200 200M220 30l200 200"/>
+    <path d="M412 150L212 350M372 110L172 310M332 70L132 270M452 190L252 390M292 30L92 230"/>
+  </g>
+  <rect x="118" y="226" width="276" height="34" rx="17" fill="#e9d8bc"/>
+  <path d="M154 260c0 94 50 156 102 172 52-16 102-78 102-172z" fill="#fbf6ec"/>
+  <path d="M196 292c4 46 22 82 46 104" fill="none" stroke="#e7d6bb" stroke-width="14" stroke-linecap="round"/>
+  <rect x="330" y="356" width="70" height="70" rx="12" fill="none" stroke="#e05a4a" stroke-width="7" transform="rotate(-8 365 391)"/>
+  <text x="365" y="408" font-family="Kaiti SC, STKaiti, KaiTi, serif" font-size="46" font-weight="700" fill="#e05a4a" text-anchor="middle" transform="rotate(-8 365 391)">藏</text>
+</svg>

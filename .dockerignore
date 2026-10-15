@@ -1,0 +1,11 @@
+# Never bake the library or local services into an image.
+data/
+services/
+node_modules/
+dist/
+coverage/
+tmp/
+.git/
+.env
+*.log
+.DS_Store

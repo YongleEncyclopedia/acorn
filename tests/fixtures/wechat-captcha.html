@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<!-- A minimal stand-in for the page mp.weixin.qq.com shows instead of an article when it wants a captcha
+     (the real one is Tencent's code; only the parts Acorn looks at are kept). -->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title></title>
+  <script>
+    var poc_token = "";
+    var redirect_url = "https://mp.weixin.qq.com/mp/wappoc_appmsgcaptcha?poc_token=placeholder&target_url=https%3A%2F%2Fmp.weixin.qq.com%2Fs%3F__biz%3Dx";
+  </script>
+</head>
+<body>
+  <div class="weui-msg">
+    <div class="weui-msg__icon-area"><i class="weui-icon-warn weui-icon_msg"></i></div>
+    <div class="weui-msg__text-area">
+      <h2 class="weui-msg__title">环境异常</h2>
+      <p class="weui-msg__desc">当前环境异常，完成验证后即可继续访问。</p>
+    </div>
+    <div class="weui-msg__opr-area">
+      <a href="javascript:;" class="weui-btn weui-btn_primary" id="js_verify">去验证</a>
+    </div>
+  </div>
+</body>
+</html>
