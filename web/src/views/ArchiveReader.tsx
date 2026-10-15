@@ -23,7 +23,7 @@ const METHOD: Record<string, string> = { fetch: "服务器抓取", browser: "浏
 const STATUS: Record<string, { label: string; cls: string }> = {
   alive: { label: "原文仍在", cls: "ok" },
   changed: { label: "原文改过", cls: "warn" },
-  gone: { label: "原文已消失", cls: "seal" },
+  gone: { label: "原文已消失", cls: "red" },
   unknown: { label: "暂时无法确认", cls: "" },
 };
 
@@ -233,7 +233,7 @@ export function ArchiveReader({ id }: { id: number }) {
             <div className="archive-layout">
               <div className="article-wrap" style={readerStyle(prefs)}>
                 {a.sourceStatus === "gone" && (
-                  <div className="reader-banner seal">
+                  <div className="reader-banner lost">
                     <Seal size="sm" />
                     <span>原文已经消失（{fullDate(a.goneAt)} 发现）。这是你在 {fullDate(snap?.capturedAt)} 藏下的副本。</span>
                   </div>

@@ -28,7 +28,7 @@ function Card({ a }: { a: ArchiveSummary }) {
         <h3>{a.title}</h3>
         {a.excerpt && <p className="ex">{a.excerpt}</p>}
         <div className="foot">
-          {gone && <span className="badge seal">原文已消失</span>}
+          {gone && <span className="badge red">原文已消失</span>}
           {a.sourceStatus === "changed" && <span className="badge warn">原文改过</span>}
           {a.snapshotCount > 1 && (
             <span className="badge">

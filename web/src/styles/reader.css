@@ -416,7 +416,7 @@
   background: var(--bg-sunken);
   color: var(--ink-2);
 }
-.reader-banner.seal {
+.reader-banner.lost {
   background: var(--seal-soft);
   color: var(--seal);
 }

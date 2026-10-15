@@ -241,7 +241,7 @@ function FeedEditor({ feed, onClose }: { feed: Feed; onClose: () => void }) {
           <div className="preview-list">
             {(logs.data || []).slice(0, 8).map((l, i) => (
               <div key={i} className="preview-item">
-                <span className={`badge ${l.status === "error" ? "seal" : l.status === "ok" ? "ok" : ""}`}>{l.status === "ok" ? `+${l.added}` : l.status === "not_modified" ? "无变化" : "失败"}</span>
+                <span className={`badge ${l.status === "error" ? "red" : l.status === "ok" ? "ok" : ""}`}>{l.status === "ok" ? `+${l.added}` : l.status === "not_modified" ? "无变化" : "失败"}</span>
                 <span className="t" style={{ color: l.error ? "var(--danger)" : "var(--ink-3)" }} title={l.error || ""}>
                   {l.error || `${l.ms} ms`}
                 </span>
@@ -283,7 +283,7 @@ function Row({ feed, onEdit }: { feed: Feed; onEdit: () => void }) {
         <div className="sub">
           <KindBadge kind={feed.kind} />
           {feed.paused && <span className="badge">已暂停</span>}
-          {feed.autoArchive && <span className="badge seal">自动入藏</span>}
+          {feed.autoArchive && <span className="badge red">自动入藏</span>}
           <span className="url">{feed.kind === "rsshub" ? feed.url : feed.kind === "plugin" ? `插件 ${feed.url}` : hostname(feed.siteUrl || feed.url)}</span>
           <span>·</span>
           <span className="tabular">

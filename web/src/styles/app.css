@@ -532,7 +532,8 @@ input[type="range"].slider::-moz-range-thumb {
   background: var(--accent-soft);
   color: var(--accent-ink);
 }
-.badge.seal {
+/* red tone; not `.seal`, which is the stamp component's own class */
+.badge.red {
   background: var(--seal-soft);
   color: var(--seal);
 }

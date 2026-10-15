@@ -282,7 +282,7 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
       <div ref={scrollRef} className="reader-scroll scroll">
         <div className="article-wrap" style={readerStyle(prefs)}>
           {gone && (
-            <div className="reader-banner seal">
+            <div className="reader-banner lost">
               <Seal size="sm" />
               <span>原文已经消失。你正在读的内容来自 {fullDate(entry.archive?.latestCapturedAt)} 的本地存档。</span>
             </div>
