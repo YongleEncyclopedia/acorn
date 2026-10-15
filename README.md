@@ -8,6 +8,8 @@
 > when the original disappears. Built to be extended by coding agents (CLI, MCP server, `AGENTS.md`). The interface is
 > in Chinese. Node.js ≥ 22.18, no native modules. License: AGPL-3.0.
 
+![松果的三栏阅读界面：订阅源、文章列表和正文](docs/screenshots/reader.png)
+
 - **订阅一切**：RSS / Atom / JSON Feed、RSSHub 路由、没有 RSS 的网页（学院通知、部门公告，自动识别列表）、用 TypeScript 写的插件源，以及微信公众号（接上 we-mp-rss 后自动同步）。
 - **好读**：宋体 / 霞鹜文楷 / 黑体三套阅读字体，纸、米、夜、墨四种主题，首行缩进、两端对齐，摘要型订阅自动抓全文。手机上是一个可以装到主屏幕的 App。
 - **入藏**：一键（或标星、批注时自动）把正文、图片、附件、原始网页存到你自己的硬盘；遇到公众号、小红书、知乎这类有登录或验证的网站，可以用你自己登录过的浏览器（ego-browser）入藏，连同整页快照 MHTML 和截图。
@@ -16,6 +18,24 @@
 - **批注**：高亮、写想法，导出 Markdown 直接进 Obsidian。
 - **多设备同步**：手机、平板、Linux、Mac 共用同一份已读状态、阅读进度、批注和阅读偏好；也可以用 Reeder、NetNewsWire、Read You、Capy Reader 等原生阅读器连接（Google Reader 兼容接口）。
 - **Agent 友好**：命令行 `acorn`、MCP 服务器、给 Agent 看的 `AGENTS.md` 和 skill，让 Claude Code / Hermes 直接帮你加源、写抓取规则、整理存档。
+
+## 看看样子
+
+| | |
+|---|---|
+| ![英文文章逐段双语对照，用本机 qwen3:14b 翻译](docs/screenshots/translate.png) | ![正文里三种颜色的划线](docs/screenshots/highlights.png) |
+| **翻译**：外文文章逐段双语对照，这张用的是本机的 qwen3:14b | **批注**：划线、写想法，批注过的文章自动入藏 |
+| ![「藏」：本地存档库](docs/screenshots/archive.png) | ![原文已被删除，读的是本地副本](docs/screenshots/gone.png) |
+| **藏**：每篇存档都是硬盘上的普通文件 | **原文没了，副本还在**：回访发现原文被删，会标出来 |
+
+<p align="center">
+  <img src="docs/screenshots/mobile-reader.png" width="260" alt="手机上的阅读页">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/mobile-dark.png" width="260" alt="手机上的文章列表，深色模式">
+</p>
+<p align="center">手机上是一个可以装到主屏幕的 App，跟随系统的深色模式</p>
+
+> 截图里的订阅源、文章和配图都是为演示写的虚构内容。
 
 ## 快速开始
 
