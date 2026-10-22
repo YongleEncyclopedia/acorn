@@ -37,7 +37,9 @@ src/server/
                        browser.ts (ego-browser capture: HTML + MHTML + screenshot), mhtml.ts, recheck.ts
   api/                 http.ts (Hono app, auth gate, static), routes/*.ts, greader.ts (Google Reader API),
                        outputs.ts (re-publish as RSS), auth.ts, content.ts (image proxy URL rewriting)
-  translate/           engine.ts (Ollama / OpenAI-compatible / Anthropic, numbered-segment prompt), index.ts (job queue + cache)
+  translate/           engine.ts (Ollama / OpenAI-compatible / Anthropic, numbered-segment prompt), index.ts (job queue + cache),
+                       summary.ts (key points, cached in the same table under `summary:<lang>`)
+  util/net.ts          addresses other devices can reach (LAN, Tailscale, public URL) for login links
   scheduler.ts         refresh loop, archive recheck, starred→archive sweep, Telegram digest (croner)
   notify/telegram.ts
 src/shared/types.ts    API types shared by server and web — change both sides together
@@ -86,5 +88,6 @@ tests/                 vitest; fixtures are real pages saved from the web
 Session cookie (web) or `Authorization: Bearer <token>` (CLI/MCP/scripts). JSON under `/api/*`:
 `bootstrap, counts, feeds (+/preview, /:id/refresh, /:id/logs), folders, entries (list/detail/PATCH/fulltext/mark),
 archives (list/detail/POST capture/import/:id/snapshot/:id/recheck/PATCH/DELETE), highlights, search, settings,
-tokens, stats, logs, opml, digest, events (SSE), img (image proxy), translate (+/:id, /models, /test), wechat-bridge (+/sync)`. Archive files: `/files/archive/<path>`.
+tokens, stats, logs, opml, digest, events (SSE), img (image proxy), translate (+/:id, /models, /test), summary, wechat-bridge (+/sync),
+addresses, login-link`. One-time sign-in: `GET /login/<token>` (public; the token comes from `POST /api/login-link`). Archive files: `/files/archive/<path>`.
 Google Reader API: `/accounts/ClientLogin`, `/reader/api/0/*` (also under `/api/greader`). RSS out: `/out/*.xml?key=`.
