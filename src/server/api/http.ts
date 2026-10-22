@@ -14,7 +14,7 @@ import { registerOutputs } from "./outputs.ts";
 import { SourceChoiceError } from "../feeds/add.ts";
 import { HttpError } from "../util/http.ts";
 import { NotAFeedError } from "../feeds/parse.ts";
-import { BlockedError } from "../archive/capture.ts";
+import { BlockedError, GoneError } from "../archive/capture.ts";
 import { BrowserBlockedError } from "../archive/browser.ts";
 import { clearSession, createLoginLink, hasPassword, isAuthenticated, isLoopback, issueSession, loginAllowed, redeemLoginLink, setPassword, verifyPassword } from "./auth.ts";
 import { reachableOrigins } from "../util/net.ts";
@@ -47,6 +47,7 @@ export function createHttp(app: App, hooks: Hooks = {}): Hono {
     if (err instanceof NotAFeedError) return c.json({ error: "not_a_feed", message: err.message }, 422);
     if (err instanceof BrowserBlockedError) return c.json({ error: "verify", message: err.message, spaceId: err.spaceId, url: err.url }, 423);
     if (err instanceof BlockedError) return c.json({ error: "blocked", message: err.message }, 423);
+    if (err instanceof GoneError) return c.json({ error: "gone", message: err.message, reason: err.reason }, 410);
     if (err instanceof HttpError) return c.json({ error: "upstream", message: err.message, status: err.status }, 502);
     if (err instanceof SyntaxError) return c.json({ error: "bad_request", message: "请求格式不正确" }, 400);
     log.error(`${c.req.method} ${c.req.path}`, err);

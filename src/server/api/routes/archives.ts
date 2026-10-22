@@ -7,6 +7,7 @@ import type { App } from "../../app.ts";
 import type { ArchiveDetail, HighlightColor } from "../../../shared/types.ts";
 import { toArchiveSummary, toSnapshot, fileUrl } from "../../store/archives.ts";
 import { capture, queueCapture, resumeCapture } from "../../archive/capture.ts";
+import { captureFromWayback } from "../../archive/wayback.ts";
 import { dropPending, listPending, registerPending } from "../../archive/browser.ts";
 import { recheckArchive } from "../../archive/recheck.ts";
 import { archiveHtml } from "../content.ts";
@@ -155,6 +156,15 @@ export function registerArchives(r: Hono, app: App): void {
   });
 
   r.post("/api/archives/:id/recheck", async (c) => c.json(await recheckArchive(app, Number(c.req.param("id")))));
+
+  /** Fetch a dead link's copy from the Internet Archive and keep it as a snapshot (the archive stays marked gone). */
+  r.post("/api/archives/:id/wayback", async (c) => {
+    const a = app.archives.row(Number(c.req.param("id")));
+    if (!a) return c.json({ error: "not_found" }, 404);
+    const res = await captureFromWayback(app, { url: a.url, near: a.published_at || a.created_at });
+    if (!res) return c.json({ error: "not_found", message: "Internet Archive 里没有这个网址的副本" }, 404);
+    return c.json(res);
+  });
 
   r.patch("/api/archives/:id", async (c) => {
     const id = Number(c.req.param("id"));

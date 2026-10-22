@@ -21,7 +21,7 @@ function fmt(ts: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-const METHOD: Record<string, string> = { fetch: "服务器抓取", browser: "浏览器快照", feed: "订阅源全文", import: "导入" };
+const METHOD: Record<string, string> = { wayback: "Internet Archive 副本", fetch: "服务器抓取", browser: "浏览器快照", feed: "订阅源全文", import: "导入" };
 
 export function renderArchivePage(d: TemplateData): string {
   const meta = [d.site, d.author, d.publishedAt ? fmt(d.publishedAt) : null].filter(Boolean).map((x) => esc(String(x))).join('<span class="dot">·</span>');

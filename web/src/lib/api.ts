@@ -147,6 +147,7 @@ export const api = {
   patchArchive: (id: number, body: { title?: string; tags?: string[]; note?: string | null }) => patch<ArchiveDetail>(`/api/archives/${id}`, body),
   deleteArchive: (id: number) => del<{ ok: boolean }>(`/api/archives/${id}`),
   importArchive: (fd: FormData) => request<{ archiveId: number; title: string }>("POST", "/api/archives/import", fd),
+  waybackRescue: (id: number) => post<{ archiveId: number; title: string; warnings: string[] }>(`/api/archives/${id}/wayback`),
 
   highlights: (q?: string, cursor?: string | null) => get<Page<Highlight>>(`/api/highlights${qs({ q, cursor, limit: 60 })}`),
   createHighlight: (body: { entryId?: number | null; archiveId?: number | null; quote: string; prefix: string; suffix: string; note?: string | null; color?: HighlightColor }) =>

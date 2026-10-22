@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Camera, Copy, ExternalLink, FileCode2, FileDown, FileText, Globe, Languages, MoreHorizontal, RefreshCcw, RotateCw, Sparkles, Trash2, Type } from "lucide-react";
+import { ArrowLeft, Camera, Copy, ExternalLink, FileCode2, FileDown, FileText, Globe, Languages, LifeBuoy, MoreHorizontal, RefreshCcw, RotateCw, Sparkles, Trash2, Type } from "lucide-react";
 import { Layout } from "./Layout.tsx";
 import { ArticleView, type ArticleHandle } from "./ArticleView.tsx";
 import { TranslateStatus } from "../components/TranslateStatus.tsx";
@@ -20,7 +20,7 @@ import { Seal } from "../components/Seal.tsx";
 import { Empty } from "../components/Empty.tsx";
 import type { ArchiveDetail } from "../../../src/shared/types.ts";
 
-const METHOD: Record<string, string> = { fetch: "服务器抓取", browser: "浏览器快照", feed: "订阅源全文", import: "手动导入" };
+const METHOD: Record<string, string> = { fetch: "服务器抓取", browser: "浏览器快照", feed: "订阅源全文", import: "手动导入", wayback: "Internet Archive 副本" };
 const STATUS: Record<string, { label: string; cls: string }> = {
   alive: { label: "原文仍在", cls: "ok" },
   changed: { label: "原文改过", cls: "warn" },
@@ -184,6 +184,20 @@ export function ArchiveReader({ id }: { id: number }) {
       toastError(e);
     }
   };
+  const [rescuing, setRescuing] = useState(false);
+  const rescue = async () => {
+    setRescuing(true);
+    try {
+      const r = await api.waybackRescue(id);
+      toast(`已从 Internet Archive 找回一份副本 · ${r.title}`);
+      setSnapshotId(0);
+      changed();
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setRescuing(false);
+    }
+  };
   const remove = async () => {
     if (!window.confirm("删除这份存档？本地文件会一起删除，无法恢复。")) return;
     await api.deleteArchive(id).catch(toastError);
@@ -240,7 +254,16 @@ export function ArchiveReader({ id }: { id: number }) {
                 {a.sourceStatus === "gone" && (
                   <div className="reader-banner lost">
                     <Seal size="sm" />
-                    <span>原文已经消失（{fullDate(a.goneAt)} 发现）。这是你在 {fullDate(snap?.capturedAt)} 藏下的副本。</span>
+                    <span>
+                      原文已经消失（{fullDate(a.goneAt)} 发现）。
+                      {snap?.method === "wayback" ? "这是从 Internet Archive 找回的副本。" : `这是你在 ${fullDate(snap?.capturedAt)} 藏下的副本。`}
+                    </span>
+                    {snap?.method !== "wayback" && (
+                      <button className="btn sm act" onClick={rescue} disabled={rescuing} title="去 Wayback Machine 找一份当年的副本">
+                        {rescuing ? <span className="spinner" /> : <LifeBuoy size={14} />}
+                        找 Internet Archive 的副本
+                      </button>
+                    )}
                   </div>
                 )}
                 {snap && a.snapshots[0] && snap.id !== a.snapshots[0].id && (
@@ -301,6 +324,7 @@ export function ArchiveReader({ id }: { id: number }) {
                 { label: "检查原文是否还在", icon: <RefreshCcw size={15} />, onSelect: recheck },
                 { label: "重新入藏一个新版本", icon: <RotateCw size={15} />, onSelect: () => recapture("fetch") },
                 ...(boot.data?.egoBrowser ? [{ label: "用我的浏览器重新入藏", icon: <Globe size={15} />, onSelect: () => recapture("browser") }] : []),
+                { label: "找 Internet Archive 的副本", icon: <LifeBuoy size={15} />, onSelect: rescue },
                 { label: "打开原文", icon: <ExternalLink size={15} />, onSelect: () => window.open(a.url, "_blank", "noopener,noreferrer") },
                 "sep",
                 { label: "删除存档", icon: <Trash2 size={15} />, danger: true, onSelect: remove },

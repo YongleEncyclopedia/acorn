@@ -147,7 +147,7 @@ export interface Snapshot {
   id: number;
   archiveId: number;
   capturedAt: number;
-  method: "fetch" | "browser" | "feed" | "import";
+  method: "fetch" | "browser" | "feed" | "import" | "wayback";
   bytes: number;
   assets: number;
   textLength: number;

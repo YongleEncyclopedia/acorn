@@ -109,6 +109,7 @@ export function createClient(baseUrl = defaultBaseUrl(), token = defaultToken())
     archives: (q: { q?: string; status?: string; tag?: string; limit?: number; cursor?: string }) => call<Page<ArchiveSummary>>("GET", `/api/archives${qs(q)}`),
     archive: (id: number) => call<ArchiveDetail>("GET", `/api/archives/${id}`),
     recheck: (id: number) => call<{ status: string; reason?: string }>("POST", `/api/archives/${id}/recheck`),
+    waybackRescue: (id: number) => call<{ archiveId: number; title: string; warnings: string[] }>("POST", `/api/archives/${id}/wayback`),
     patchArchive: (id: number, body: { title?: string; tags?: string[]; note?: string | null }) => call<ArchiveDetail>("PATCH", `/api/archives/${id}`, body),
     highlights: (q?: string, limit = 50) => call<Page<Highlight>>("GET", `/api/highlights${qs({ q, limit })}`),
     addHighlight: (body: { entryId?: number; archiveId?: number; quote: string; note?: string; color?: HighlightColor }) =>

@@ -23,10 +23,19 @@ export class BlockedError extends Error {
   }
 }
 
+/** The original is gone and nothing (a feed copy, the Internet Archive) stood in for it. */
+export class GoneError extends Error {
+  reason: string;
+  constructor(message: string, reason: string) {
+    super(message);
+    this.reason = reason;
+  }
+}
+
 export interface CaptureInput {
   url: string;
   entryId?: number | null;
-  method: "fetch" | "browser" | "feed" | "import";
+  method: "fetch" | "browser" | "feed" | "import" | "wayback";
   /** Pre-fetched page HTML (browser capture, imports, rechecks). */
   html?: string | null;
   finalUrl?: string;
@@ -37,6 +46,10 @@ export interface CaptureInput {
   force?: boolean;
   tags?: string[];
   title?: string;
+  /** Notes kept with the snapshot, e.g. where a stand-in copy came from. */
+  warnings?: string[];
+  /** No "done" event: bulk work (a move-in) reports its progress another way. */
+  quiet?: boolean;
 }
 
 export interface CaptureResult {
@@ -78,7 +91,7 @@ export async function capture(app: App, input: CaptureInput): Promise<CaptureRes
   const existing = app.archives.byUrl(url);
   const entry = input.entryId ? app.entries.row(input.entryId) : app.entries.byUrl(input.url) || app.entries.byUrl(url);
   const feed = entry ? app.feeds.get(entry.feed_id) : undefined;
-  const warnings: string[] = [];
+  const warnings: string[] = [...(input.warnings || [])];
   const now = Date.now();
 
   let mhtml: Mhtml | null = null;
@@ -164,7 +177,8 @@ export async function capture(app: App, input: CaptureInput): Promise<CaptureRes
       return { archiveId: existing.id, snapshotId: null, created: false, unchanged: true, gone, warnings, title: existing.title };
     }
     if (blocked) throw new BlockedError(`${blocked}。请在浏览器里打开原文完成验证，再用「浏览器入藏」保存`, blocked);
-    throw new Error(gone ? `原文已失效（${gone}），且没有可用的副本` : warnings[warnings.length - 1] || "没有可存档的内容");
+    if (gone) throw new GoneError(`原文已失效（${gone}），且没有可用的副本`, gone);
+    throw new Error(warnings[warnings.length - 1] || "没有可存档的内容");
   }
 
   const title = (input.title || entry?.title || article.title || finalUrl).trim();
@@ -259,7 +273,7 @@ export async function capture(app: App, input: CaptureInput): Promise<CaptureRes
   app.archives.setSourceStatus(archiveId, gone ? "gone" : changed ? "changed" : "alive", now);
   app.archives.index(archiveId, title, `${site || ""}\n${author || ""}\n${text}`);
   log.info(`archived #${archiveId} ${title} (${assets.files.length} images, ${assets.attachments.length} attachments, ${Math.round(bytes / 1024)} KB)`);
-  app.events.emit({ type: "archive", archiveId, url: input.url, status: "done", title });
+  if (!input.quiet) app.events.emit({ type: "archive", archiveId, url: input.url, status: "done", title });
   app.events.emit({ type: "counts" });
   return { archiveId, snapshotId, created: !existing, unchanged: false, gone, warnings, title };
 }

@@ -24,6 +24,8 @@ export interface Config {
   feedUserAgent: string;
   pageUserAgent: string;
   egoBrowserBin: string;
+  /** Internet Archive (Wayback Machine) used to rescue dead links. */
+  waybackBase: string;
   /** Disable background scheduler (tests, one-off CLI runs). */
   scheduler: boolean;
 }
@@ -53,6 +55,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     feedUserAgent: env.ACORN_FEED_UA || `Mozilla/5.0 (compatible; Acorn/0.1; personal feed reader)`,
     pageUserAgent: env.ACORN_PAGE_UA || BROWSER_UA,
     egoBrowserBin: env.ACORN_EGO_BROWSER || "ego-browser",
+    waybackBase: (env.ACORN_WAYBACK_BASE || "https://web.archive.org").replace(/\/+$/, ""),
     scheduler: env.ACORN_SCHEDULER !== "off",
     ...overrides,
   };
