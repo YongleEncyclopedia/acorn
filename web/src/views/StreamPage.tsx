@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckCheck, ListFilter, Menu as MenuIcon, MoreHorizontal, Pause, Pencil, RefreshCw } from "lucide-react";
+import { CheckCheck, History, ListFilter, Menu as MenuIcon, MoreHorizontal, Pause, Pencil, RefreshCw } from "lucide-react";
 import { Layout, streamPath, VIEW_TITLES, type Stream } from "./Layout.tsx";
 import { EntryList } from "./EntryList.tsx";
 import { EntryReader } from "./EntryReader.tsx";
@@ -100,11 +100,12 @@ export function StreamPage({ stream, entryId }: { stream: Stream; entryId: numbe
     [setRead, setStar],
   );
 
-  const markAll = async () => {
+  /** Mark everything here as read, or only what was published more than `days` ago. */
+  const markAll = async (days = 0) => {
     try {
       const body =
         stream.kind === "feed" ? { feedId: stream.id } : stream.kind === "folder" ? { folderId: stream.id } : { view: stream.view === "today" ? ("today" as const) : undefined };
-      const r = await api.mark({ ...body, before: Date.now() });
+      const r = await api.mark({ ...body, before: Date.now() - days * 86_400_000 });
       toast(r.changed ? `已将 ${r.changed} 篇标为已读` : "没有未读文章");
       qc.invalidateQueries({ queryKey: ["entries"] });
       qc.invalidateQueries({ queryKey: keys.bootstrap });
@@ -132,7 +133,7 @@ export function StreamPage({ stream, entryId }: { stream: Stream; entryId: numbe
     ArrowDown: () => !entryId && go(1),
     ArrowUp: () => !entryId && go(-1),
     r: refresh,
-    "shift+a": markAll,
+    "shift+a": () => markAll(),
     "g u": () => navigate("/s/unread"),
     "g t": () => navigate("/s/today"),
     "g s": () => navigate("/s/starred"),
@@ -218,8 +219,16 @@ export function StreamPage({ stream, entryId }: { stream: Stream; entryId: numbe
       </div>
       {markMenu.open && (
         <Popover anchor={markMenu.el} onClose={markMenu.close}>
-          <div className="menu-note">把「{title}」里截至现在的文章全部标为已读？</div>
-          <Menu items={[{ label: "全部标为已读", icon: <CheckCheck size={15} />, onSelect: markAll }]} onClose={markMenu.close} />
+          <div className="menu-note">把「{title}」里的文章标为已读</div>
+          <Menu
+            items={[
+              { label: "全部", icon: <CheckCheck size={15} />, onSelect: () => markAll() },
+              { label: "一天前发布的", icon: <History size={15} />, onSelect: () => markAll(1) },
+              { label: "三天前发布的", icon: <History size={15} />, onSelect: () => markAll(3) },
+              { label: "一周前发布的", icon: <History size={15} />, onSelect: () => markAll(7) },
+            ]}
+            onClose={markMenu.close}
+          />
         </Popover>
       )}
       {moreMenu.open && feed && (

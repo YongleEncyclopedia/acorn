@@ -100,7 +100,8 @@ export function registerFeeds(r: Hono, app: App): void {
     if (!base) return c.json({ url: "", accounts: [] });
     try {
       const accounts = await listBridgeAccounts(app, base);
-      return c.json({ url: base, accounts: accounts.map((a) => ({ ...a, feedId: app.feeds.find("feed", bridgeFeedUrl(base, a.id))?.id ?? null })) });
+      const last = app.db.get<{ at: number | null }>("select max(e.created_at) as at from entries e join feeds f on f.id = e.feed_id where f.url like ?", `${base}/feed/%`);
+      return c.json({ url: base, accounts: accounts.map((a) => ({ ...a, feedId: app.feeds.find("feed", bridgeFeedUrl(base, a.id))?.id ?? null })), lastEntryAt: last?.at ?? null });
     } catch (err) {
       return c.json(bridgeDown(err), 502);
     }

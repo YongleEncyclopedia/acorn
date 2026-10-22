@@ -57,6 +57,40 @@ export function RuleEditor({ rule, onChange }: { rule: HtmlRule; onChange: (r: H
   );
 }
 
+/** A starting shelf for an empty reader: feeds checked to work and to carry full text or a good summary. */
+const PICKS: { group: string; items: { title: string; url: string; note: string }[] }[] = [
+  {
+    group: "科技与生活",
+    items: [
+      { title: "少数派", url: "https://sspai.com/feed", note: "数字生活、效率工具" },
+      { title: "爱范儿", url: "https://www.ifanr.com/feed", note: "科技新闻与评测" },
+      { title: "极客公园", url: "https://www.geekpark.net/rss", note: "科技公司与创业" },
+      { title: "机核", url: "https://www.gcores.com/rss", note: "游戏与流行文化" },
+    ],
+  },
+  {
+    group: "博客",
+    items: [
+      { title: "阮一峰的网络日志", url: "https://www.ruanyifeng.com/blog/atom.xml", note: "每周五《科技爱好者周刊》" },
+      { title: "小众软件", url: "https://www.appinn.com/feed/", note: "好用的小软件" },
+      { title: "Simon Willison", url: "https://simonwillison.net/atom/entries/", note: "AI 与工程，英文" },
+    ],
+  },
+  {
+    group: "资讯与社区",
+    items: [
+      { title: "奇客 Solidot", url: "https://www.solidot.org/index.rss", note: "科技资讯短讯" },
+      { title: "V2EX", url: "https://www.v2ex.com/index.xml", note: "程序员社区最新主题" },
+      { title: "Hacker News 200+", url: "https://hnrss.org/frontpage?points=200", note: "200 分以上的热帖，英文" },
+      { title: "The Verge", url: "https://www.theverge.com/rss/index.xml", note: "科技媒体，英文" },
+    ],
+  },
+  {
+    group: "论文",
+    items: [{ title: "arXiv · cs.AI", url: "https://rss.arxiv.org/rss/cs.AI", note: "人工智能新论文，工作日更新" }],
+  },
+];
+
 const RSSHUB_EXAMPLES = [
   { label: "B 站 UP 主动态", route: "/bilibili/user/dynamic/2267573" },
   { label: "知乎热榜", route: "/zhihu/hot" },
@@ -82,6 +116,7 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
   const [newFolder, setNewFolder] = useState("");
   const [fullText, setFullText] = useState<FullTextMode>("auto");
   const [autoArchive, setAutoArchive] = useState(false);
+  const subscribed = useMemo(() => new Set(boot.data?.feeds.map((f) => f.url) || []), [boot.data?.feeds]);
   const plugin = boot.data?.plugins.find((p) => p.id === pluginId);
 
   const kind: FeedKind | undefined = tab === "rsshub" ? "rsshub" : tab === "plugin" ? "plugin" : preview?.kind === "html" && rule ? "html" : undefined;
@@ -236,6 +271,37 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
             {busy === "preview" ? <span className="spinner" /> : <Wand2 size={16} />}
             识别
           </button>
+        </div>
+      )}
+      {tab === "url" && !input.trim() && !preview && (
+        <div className="picks">
+          {PICKS.map((g) => (
+            <section key={g.group}>
+              <h4>{g.group}</h4>
+              <div className="pick-grid">
+                {g.items.map((x) => {
+                  const have = subscribed.has(x.url);
+                  return (
+                    <button
+                      key={x.url}
+                      className="pick"
+                      disabled={have || !!busy}
+                      onClick={() => {
+                        setInput(x.url);
+                        void runPreview({ input: x.url });
+                      }}
+                    >
+                      <b>
+                        {x.title}
+                        {have && <Check size={13} />}
+                      </b>
+                      <span>{have ? "已订阅" : x.note}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
         </div>
       )}
       {tab === "rsshub" && (

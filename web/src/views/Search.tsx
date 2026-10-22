@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Highlighter, Link2, Menu as MenuIcon, Moon, Plus, Search as SearchIcon, Settings } from "lucide-react";
+import { FileText, Highlighter, Link2, Menu as MenuIcon, Moon, Plus, Search as SearchIcon, Settings, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Layout } from "./Layout.tsx";
 import { api } from "../lib/api.ts";
@@ -41,7 +41,7 @@ interface Row {
   run: () => void;
 }
 
-function useRows(q: string, close: () => void): Row[] {
+function useRows(q: string, close: () => void, more = false): Row[] {
   const [, navigate] = useLocation();
   const res = useSearchResults(q);
   const [prefs, setPrefs] = usePrefs();
@@ -62,11 +62,11 @@ function useRows(q: string, close: () => void): Row[] {
     const d = res.data;
     if (!d) return [];
     return [
-      ...d.entries.slice(0, 8).map((e) => ({ key: `e${e.id}`, group: "文章", icon: <FileText size={16} />, title: e.title, sub: [relTime(e.publishedAt || e.createdAt), e.summary].filter(Boolean).join(" · "), run: () => go(`/entry/${e.id}`) })),
-      ...d.archives.slice(0, 6).map((a) => ({ key: `a${a.id}`, group: "藏", icon: <Seal size="xs" />, title: a.title, sub: [a.site, a.excerpt].filter(Boolean).join(" · "), run: () => go(`/archive/${a.id}`) })),
-      ...d.highlights.slice(0, 6).map((h) => ({ key: `h${h.id}`, group: "批注", icon: <Highlighter size={16} />, title: h.quote, sub: [h.title, h.note].filter(Boolean).join(" · "), run: () => go(h.archiveId ? `/archive/${h.archiveId}` : `/entry/${h.entryId}`) })),
+      ...d.entries.slice(0, more ? 40 : 8).map((e) => ({ key: `e${e.id}`, group: "文章", icon: <FileText size={16} />, title: e.title, sub: [relTime(e.publishedAt || e.createdAt), e.summary].filter(Boolean).join(" · "), run: () => go(`/entry/${e.id}`) })),
+      ...d.archives.slice(0, more ? 30 : 6).map((a) => ({ key: `a${a.id}`, group: "藏", icon: <Seal size="xs" />, title: a.title, sub: [a.site, a.excerpt].filter(Boolean).join(" · "), run: () => go(`/archive/${a.id}`) })),
+      ...d.highlights.slice(0, more ? 30 : 6).map((h) => ({ key: `h${h.id}`, group: "批注", icon: <Highlighter size={16} />, title: h.quote, sub: [h.title, h.note].filter(Boolean).join(" · "), run: () => go(h.archiveId ? `/archive/${h.archiveId}` : `/entry/${h.entryId}`) })),
     ];
-  }, [q, res.data, prefs.theme, close, navigate, setPrefs]);
+  }, [q, res.data, prefs.theme, close, navigate, setPrefs, more]);
 }
 
 function Results({ q, rows, active, setActive }: { q: string; rows: Row[]; active: number; setActive: (i: number) => void }) {
@@ -145,22 +145,44 @@ export function SearchPalette() {
 }
 
 export function SearchPage() {
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [active, setActive] = useState(0);
-  const rows = useRows(q, () => undefined);
+  const rows = useRows(q, () => undefined, true);
+  useEffect(() => setActive(0), [rows.length]);
+  // Keep the query in the address bar, so a search can be bookmarked or linked to (e.g. from the CLI).
+  useEffect(() => {
+    window.history.replaceState(window.history.state, "", q.trim() ? `/search?q=${encodeURIComponent(q.trim())}` : "/search");
+  }, [q]);
   return (
     <Layout mode="wide">
-      <main className="pane wide-pane">
-        <header className="pane-head">
+      <main className="pane wide-pane scroll" style={{ overflowY: "auto" }}>
+        <header className="pane-head" style={{ background: "transparent", backdropFilter: "none" }}>
           <button className="icon-btn menu-btn" onClick={() => ui.set({ drawer: true })} aria-label="打开导航">
             <MenuIcon size={20} />
           </button>
-          <div className="search-field" style={{ maxWidth: "none" }}>
-            <SearchIcon size={16} />
-            <input className="field" autoFocus placeholder="搜索文章、存档、批注…" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
         </header>
-        <div className="page narrow" style={{ paddingTop: 8 }}>
+        <div className="page narrow search-page">
+          <label className="search-hero">
+            <SearchIcon size={19} />
+            <input
+              autoFocus
+              type="search"
+              enterKeyHint="search"
+              placeholder="搜索文章、存档、批注…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") (e.preventDefault(), setActive((a) => Math.min(rows.length - 1, a + 1)));
+                if (e.key === "ArrowUp") (e.preventDefault(), setActive((a) => Math.max(0, a - 1)));
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) rows[active]?.run();
+              }}
+            />
+            {!!q && (
+              <button className="icon-btn sm" aria-label="清空" onClick={() => setQ("")}>
+                <X size={15} />
+              </button>
+            )}
+          </label>
           {rows.length ? <Results q={q} rows={rows} active={active} setActive={setActive} /> : q.trim() ? <Empty art="search" title={`没有找到「${q}」`} /> : null}
         </div>
       </main>

@@ -271,6 +271,9 @@ function WechatBridge({ s, save }: { s: Settings; save: (patch: Partial<Settings
   };
   const accounts = status.data?.accounts || [];
   const synced = accounts.filter((a) => a.feedId).length;
+  const last = status.data?.lastEntryAt;
+  // we-mp-rss's WeChat logins lapse every few days and the accounts then go quiet without an error anywhere.
+  const stale = !!last && accounts.length > 0 && Date.now() - last > 36 * 3_600_000;
   return (
     <section className="settings-section">
       <h2>微信公众号</h2>
@@ -286,6 +289,11 @@ function WechatBridge({ s, save }: { s: Settings; save: (patch: Partial<Settings
               保存
             </button>
           </div>
+          {stale && (
+            <div className="callout warn">
+              公众号已经 {Math.round((Date.now() - last!) / 3_600_000)} 小时没有新文章了。多半是 we-mp-rss 里的微信读书或公众平台登录过期了：打开 we-mp-rss，在「授权管理」里重新扫码。
+            </div>
+          )}
           {cfg.url && (
             <div className="bridge-status">
               {status.isLoading ? (
@@ -295,6 +303,7 @@ function WechatBridge({ s, save }: { s: Settings; save: (patch: Partial<Settings
               ) : (
                 <span>
                   已连接 · {accounts.length} 个公众号{accounts.length ? `，${synced} 个已在松果` : "，先去 we-mp-rss 里添加"}
+                  {last ? ` · 最近一篇 ${relTime(last)}` : ""}
                 </span>
               )}
               <span className="grow" />

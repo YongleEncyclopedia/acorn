@@ -4,6 +4,7 @@ const SHELL = `${VERSION}-shell`;
 const PAGES = `${VERSION}-pages`;
 const MEDIA = `${VERSION}-media`;
 const MEDIA_MAX = 800;
+const PAGES_MAX = 400; // every list query is its own cache entry; keep the newest
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(SHELL).then((c) => c.addAll(["/", "/manifest.webmanifest", "/icon.svg"])).then(() => self.skipWaiting()));
@@ -24,11 +25,15 @@ async function trim(cacheName, max) {
   for (let i = 0; i < keys.length - max; i += 1) await cache.delete(keys[i]);
 }
 
-async function networkFirst(req, cacheName, timeoutMs) {
+async function networkFirst(req, cacheName, timeoutMs, max = 0) {
   const cache = await caches.open(cacheName);
   try {
     const res = await Promise.race([fetch(req), new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), timeoutMs))]);
-    if (res.ok) cache.put(req, res.clone());
+    if (res.ok) {
+      await cache.delete(req); // re-insert so the newest stays at the end of the key list
+      await cache.put(req, res.clone());
+      if (max) trim(cacheName, max);
+    }
     return res;
   } catch (err) {
     const hit = await cache.match(req);
@@ -70,7 +75,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   if (/^\/api\/(entries|archives)\/\d+$/.test(p) || p === "/api/bootstrap" || p === "/api/entries" || p === "/api/archives" || p === "/api/highlights") {
-    event.respondWith(networkFirst(req, PAGES, 6000));
+    event.respondWith(networkFirst(req, PAGES, 6000, PAGES_MAX));
   }
 });
 

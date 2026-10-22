@@ -241,6 +241,8 @@ export interface TranslationJob {
 export interface WechatBridgeStatus {
   url: string;
   accounts: { id: string; title: string; feedId: number | null }[];
+  /** When the newest article from any of these accounts arrived (null = none yet). */
+  lastEntryAt?: number | null;
 }
 
 export interface WechatBridgeSync {
