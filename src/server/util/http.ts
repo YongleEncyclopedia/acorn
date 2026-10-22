@@ -39,7 +39,24 @@ export class HttpError extends Error {
 
 const DEFAULT_UA = "Mozilla/5.0 (compatible; Acorn/0.1; personal feed reader)";
 
+// Connection-level failures that usually succeed on a second try (flaky proxies, servers dropping keep-alive sockets).
+const TRANSIENT = /ECONNRESET|EPIPE|EAI_AGAIN|UND_ERR_SOCKET|other side closed|socket hang up/i;
+const RETRY_DELAYS = [600, 1800];
+
+/** GET with a bounded body, retried a couple of times on transient network errors (never on timeouts or HTTP errors). */
 export async function httpGet(url: string, opts: HttpOptions = {}): Promise<HttpResult> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await httpAttempt(url, opts);
+    } catch (err) {
+      const retry = err instanceof HttpError && err.status === 0 && TRANSIENT.test(err.message) && attempt < RETRY_DELAYS.length;
+      if (!retry) throw err;
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+    }
+  }
+}
+
+async function httpAttempt(url: string, opts: HttpOptions): Promise<HttpResult> {
   const timeoutMs = opts.timeoutMs ?? 25_000;
   const maxBytes = opts.maxBytes ?? 15 * 1024 * 1024;
   const headers: Record<string, string> = {

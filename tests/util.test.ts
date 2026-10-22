@@ -67,3 +67,31 @@ describe("charset handling", () => {
     expect(sniffCharset(Buffer.from("<meta charset=gbk>"), "text/html; charset=UTF-8")).toBe("utf-8");
   });
 });
+
+describe("httpGet retries", () => {
+  it("retries a dropped connection, but gives up after a few tries", async () => {
+    const http = await import("node:http");
+    const { httpGet } = await import("../src/server/util/http.ts");
+    let hits = 0;
+    let dropFirst = 1;
+    const server = http.createServer((req, res) => {
+      hits++;
+      if (hits <= dropFirst) return req.socket.destroy();
+      res.end("ok");
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/`;
+    try {
+      const res = await httpGet(url);
+      expect(res.body.toString()).toBe("ok");
+      expect(hits).toBe(2);
+
+      hits = 0;
+      dropFirst = 99;
+      await expect(httpGet(url)).rejects.toThrow();
+      expect(hits).toBe(3);
+    } finally {
+      server.close();
+    }
+  });
+});
