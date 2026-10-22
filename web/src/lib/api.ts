@@ -25,6 +25,8 @@ import type {
   Stats,
   TranslationJob,
   ArticleSummary,
+  BackupReport,
+  BackupStatus,
   WechatBridgeStatus,
   WechatBridgeSync,
 } from "../../../src/shared/types.ts";
@@ -160,6 +162,9 @@ export const api = {
   retryImport: (id: number, statuses?: string[]) => post<{ changed: number }>(`/api/imports/${id}/retry`, { statuses }),
   patchImport: (id: number, body: { paused?: boolean; tags?: string[]; wayback?: boolean }) => patch<ImportBatch>(`/api/imports/${id}`, body),
   deleteImport: (id: number) => del<{ ok: boolean }>(`/api/imports/${id}`),
+
+  backupStatus: () => get<BackupStatus>("/api/backup"),
+  runBackup: (dir?: string, wait = false) => post<BackupStatus | BackupReport>("/api/backup", { dir, wait }),
 
   highlights: (q?: string, cursor?: string | null) => get<Page<Highlight>>(`/api/highlights${qs({ q, cursor, limit: 60 })}`),
   createHighlight: (body: { entryId?: number | null; archiveId?: number | null; quote: string; prefix: string; suffix: string; note?: string | null; color?: HighlightColor }) =>

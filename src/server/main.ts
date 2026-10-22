@@ -19,7 +19,12 @@ if (cfg.initialPassword && !app.settings.getRaw("_password")) {
 ensureCliToken(app);
 
 let scheduler: Scheduler | null = null;
-const http = createHttp(app, { onSettingsChanged: () => scheduler?.rescheduleDigest() });
+const http = createHttp(app, {
+  onSettingsChanged: () => {
+    scheduler?.rescheduleDigest();
+    scheduler?.rescheduleBackup();
+  },
+});
 const server = serve({ fetch: http.fetch, port: cfg.port, hostname: cfg.host }, () => {
   const lan = Object.values(networkInterfaces())
     .flat()

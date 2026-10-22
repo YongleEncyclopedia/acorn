@@ -238,6 +238,26 @@ export interface Settings {
   /** we-mp-rss instance whose WeChat accounts are mirrored as feeds; empty url = off. */
   wechatBridge: { url: string; folder: string; autoArchive: boolean };
   translate: TranslateSettings;
+  /** A second data directory kept up to date: empty dir = off; cron = when the daily copy runs. */
+  backup: { dir: string; auto: boolean; cron: string };
+}
+
+export interface BackupReport {
+  at: number;
+  ok: boolean;
+  error: string | null;
+  dir: string;
+  /** Snapshot folders in the library, and how many of them were new to the backup. */
+  snapshots: number;
+  copied: number;
+  bytes: number;
+  ms: number;
+}
+
+export interface BackupStatus {
+  running: boolean;
+  progress: { copied: number; total: number } | null;
+  last: BackupReport | null;
 }
 
 export type TranslateProvider = "ollama" | "openai" | "anthropic";
@@ -372,6 +392,7 @@ export type ServerEvent =
   | { type: "counts" }
   | { type: "translation"; id: string; done: number; total: number; error?: string | null }
   | { type: "import"; id: number; finished: boolean }
+  | { type: "backup"; running: boolean; copied?: number; total?: number; ok?: boolean; error?: string | null }
   | { type: "hello"; at: number };
 
 /** A browser capture waiting for the user to pass a captcha / login in the handed-off ego-browser page. */

@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reader: { theme: "auto", font: "serif", fontSize: 18, lineHeight: 1.85, width: "medium", indent: false, justify: true },
   wechatBridge: { url: "", folder: "公众号", autoArchive: true },
   translate: { provider: "ollama", baseUrl: "", model: "qwen3:8b", apiKey: "", targetLang: "zh-CN", auto: false, titles: false, display: "bilingual" },
+  backup: { dir: "", auto: false, cron: "0 3 * * *" },
 };
 
 const MASK = "••••";
@@ -54,6 +55,7 @@ export class SettingsStore {
       reader: { ...DEFAULT_SETTINGS.reader, ...(parsed.reader || {}) },
       wechatBridge: { ...DEFAULT_SETTINGS.wechatBridge, ...(parsed.wechatBridge || {}) },
       translate: { ...DEFAULT_SETTINGS.translate, ...(parsed.translate || {}) },
+      backup: { ...DEFAULT_SETTINGS.backup, ...(parsed.backup || {}) },
     };
   }
 
@@ -66,6 +68,7 @@ export class SettingsStore {
       reader: { ...cur.reader, ...(patch.reader || {}) },
       wechatBridge: { ...cur.wechatBridge, ...(patch.wechatBridge || {}) },
       translate: { ...cur.translate, ...(patch.translate || {}) },
+      backup: { ...cur.backup, ...(patch.backup || {}) },
     };
     if (patch.translate?.apiKey !== undefined && isMaskedKey(patch.translate.apiKey)) next.translate.apiKey = cur.translate.apiKey;
     next.defaultInterval = Math.max(5, Math.min(24 * 60, Math.round(next.defaultInterval)));
@@ -77,6 +80,8 @@ export class SettingsStore {
     next.translate.baseUrl = (next.translate.baseUrl || "").trim().replace(/\/+$/, "");
     next.translate.model = (next.translate.model || "").trim();
     next.translate.apiKey = (next.translate.apiKey || "").trim();
+    next.backup.dir = (next.backup.dir || "").trim().replace(/[\\/]+$/, "");
+    next.backup.cron = (next.backup.cron || "").trim() || DEFAULT_SETTINGS.backup.cron;
     this.setRaw("app", JSON.stringify(next));
     return next;
   }

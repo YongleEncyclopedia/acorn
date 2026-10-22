@@ -75,6 +75,7 @@ const HELP = `松果 Acorn 命令行
   import <文件> [--tag 标签] [--no-wayback] [--dry-run]   搬家：书签 / Pocket / Instapaper / Raindrop 导出文件里的链接全部入藏
   imports                        搬家进度
   export <文件.zip> [--full]      整库导出：Markdown 包；--full 是完整副本（含原始网页和数据库）
+  backup [--dir 目录]             立即备份到设置里的目录（或 --dir 指定的目录）
   notes [--q 关键词]              批注
 
 其他
@@ -282,6 +283,12 @@ async function main(): Promise<void> {
       if (!file) throw new Error("需要输出文件：acorn export library.zip [--full]");
       const size = await api.exportTo(file, !!flags.full);
       return out({ file, bytes: size }, () => console.log(`已导出 ${file}（${(size / 1048576).toFixed(1)} MB）`));
+    }
+    case "backup": {
+      const r = await api.runBackup(flags.dir ? String(flags.dir) : undefined);
+      return out(r, () =>
+        console.log(r.ok ? `备份完成：${r.dir}，共 ${r.snapshots} 份快照，新复制 ${r.copied} 份，用时 ${Math.round(r.ms / 1000)} 秒` : red(`备份失败：${r.error}`)),
+      );
     }
     case "login-link": {
       const l = await api.loginLink();

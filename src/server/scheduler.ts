@@ -6,6 +6,7 @@ import { queueCapture } from "./archive/capture.ts";
 import { recheckArchive } from "./archive/recheck.ts";
 import { syncWechatBridge } from "./feeds/wechat-bridge.ts";
 import { sendDigest, telegramConfigured } from "./notify/telegram.ts";
+import { runBackup } from "./backup.ts";
 import { hostOf } from "./util/url.ts";
 import { logger } from "./util/log.ts";
 
@@ -14,6 +15,7 @@ const log = logger("scheduler");
 export interface Scheduler {
   stop: () => void;
   rescheduleDigest: () => void;
+  rescheduleBackup: () => void;
 }
 
 /**
@@ -22,7 +24,7 @@ export interface Scheduler {
  * - every 10 min: archive starred entries that were never archived; recheck old archives for deletion/changes;
  *   subscribe to accounts newly added in we-mp-rss
  * - daily: prune old untouched entries (when retention is enabled)
- * - cron: Telegram digest
+ * - cron: Telegram digest; the daily backup
  */
 export function startScheduler(app: App): Scheduler {
   const tick = () => {
@@ -75,13 +77,32 @@ export function startScheduler(app: App): Scheduler {
   };
   rescheduleDigest();
 
+  let backup: Cron | null = null;
+  const rescheduleBackup = () => {
+    backup?.stop();
+    backup = null;
+    const s = app.settings.all().backup;
+    if (!s.auto || !s.dir) return;
+    try {
+      backup = new Cron(s.cron, () => {
+        runBackup(app).catch((err) => log.warn("backup failed", err));
+      });
+      log.info(`backup scheduled: ${s.cron} → ${s.dir}, next ${backup.nextRun()?.toLocaleString("zh-CN")}`);
+    } catch (err) {
+      log.warn(`invalid backup cron "${s.cron}"`, err);
+    }
+  };
+  rescheduleBackup();
+
   return {
     stop: () => {
       clearInterval(t1);
       clearInterval(t2);
       clearInterval(t3);
       digest?.stop();
+      backup?.stop();
     },
     rescheduleDigest,
+    rescheduleBackup,
   };
 }

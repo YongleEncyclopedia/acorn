@@ -11,6 +11,8 @@ import { ROOT } from "../server/config.ts";
 import type {
   ArchiveDetail,
   ArchiveSummary,
+  BackupReport,
+  BackupStatus,
   Counts,
   Entry,
   EntrySummary,
@@ -137,6 +139,8 @@ export function createClient(baseUrl = defaultBaseUrl(), token = defaultToken())
     imports: () => call<ImportBatch[]>("GET", "/api/imports"),
     importItems: (id: number, status: string) => call<ImportItem[]>("GET", `/api/imports/${id}/items${qs({ status })}`),
     retryImport: (id: number) => call<{ changed: number }>("POST", `/api/imports/${id}/retry`, {}),
+    backupStatus: () => call<BackupStatus>("GET", "/api/backup"),
+    runBackup: (dir?: string) => call<BackupReport>("POST", "/api/backup?wait=1", { dir }),
     /** Download the whole library as a ZIP into `file`; returns its size. */
     exportTo: async (file: string, full = false) => {
       const res = await fetch(`${baseUrl}/api/export${full ? "?full=1" : ""}`, { headers: { authorization: `Bearer ${token}` } });

@@ -1984,6 +1984,14 @@ input[type="range"].slider::-moz-range-thumb {
   color: var(--ink-3);
 }
 
+/* several controls on one settings row; with .setting-row.wrap they form a row under the text on phones */
+.row-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 /* moving in from other tools (搬家) */
 .movein {
   display: grid;

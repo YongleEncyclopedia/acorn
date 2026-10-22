@@ -19,6 +19,9 @@ data/archive/<年>/<月>/<标题>-<url哈希前6位>/
 数据库 `data/acorn.db`（SQLite）记录存档与快照的索引、全文检索、批注和标签。丢了数据库，文件夹依然完整可读；
 `meta.json` 足以重建索引。
 
+备份（设置 → 备份与导出）产生的目录和 `data/` 同构：`acorn.db`（SQLite 在线备份，一致的）、`archive/` 里每个写完的快照文件夹
+（有 `meta.json` 的）各复制一次、`icons/`，外加一个 `backup.json`。它本身就能作为 `ACORN_DATA_DIR` 使用。
+
 原文状态：
 
 | 状态 | 含义 |

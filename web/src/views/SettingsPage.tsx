@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, KeyRound, LogOut, Menu as MenuIcon, Plus, Rss, ScrollText, Send, Smartphone, Trash2 } from "lucide-react";
+import { Copy, Download, HardDrive, KeyRound, LogOut, Menu as MenuIcon, Plus, Rss, ScrollText, Send, Smartphone, Trash2 } from "lucide-react";
 import { Layout } from "./Layout.tsx";
 import { FontPicker, ThemePicker, usePrefs } from "./ReaderPrefs.tsx";
 import { api } from "../lib/api.ts";
@@ -13,7 +13,7 @@ import { Segmented, Slider, Switch } from "../components/Controls.tsx";
 import { Dialog } from "../components/Dialog.tsx";
 import { Seal } from "../components/Seal.tsx";
 import { PhoneLogin } from "../components/PhoneLogin.tsx";
-import type { Bootstrap, Settings, TranslateSettings } from "../../../src/shared/types.ts";
+import type { Bootstrap, Settings, Stats, TranslateSettings } from "../../../src/shared/types.ts";
 import { TARGET_LANGS } from "../../../src/shared/translate.ts";
 
 const SAMPLE =
@@ -354,6 +354,99 @@ function Logs({ onClose }: { onClose: () => void }) {
           ))}
       </div>
     </Dialog>
+  );
+}
+
+/** 备份与导出: a second data directory kept up to date, and the whole library as a ZIP. */
+function Backup({ s, save, stats }: { s: Settings; save: (patch: Partial<Settings>) => Promise<void>; stats: Stats | undefined }) {
+  const qc = useQueryClient();
+  const status = useQuery({ queryKey: ["backup"], queryFn: api.backupStatus, refetchInterval: (q) => (q.state.data?.running ? 2000 : false) });
+  const [dir, setDir] = useState<string | null>(null);
+  const time = (cron: string) => {
+    const m = cron.match(/^(\d+) (\d+) \* \* \*$/);
+    return m ? `${m[2].padStart(2, "0")}:${m[1].padStart(2, "0")}` : "03:00";
+  };
+  const run = async () => {
+    try {
+      await api.runBackup();
+      qc.invalidateQueries({ queryKey: ["backup"] });
+      toast("开始备份…");
+    } catch (e) {
+      toastError(e);
+    }
+  };
+  const last = status.data?.last;
+  const running = status.data?.running;
+  return (
+    <section className="settings-section">
+      <h2>备份与导出</h2>
+      <div className="settings-card">
+        <div className="setting-row stack">
+          <div className="txt">
+            <b>备份目录</b>
+            <span>
+              每次备份把数据库和新增的存档复制过去，外接硬盘、NAS、iCloud 云盘里的文件夹都行；已经复制过的不会重复，也不会删除任何东西。备份目录本身就是一个完整的数据目录：换台电脑把它当
+              ACORN_DATA_DIR 启动，就能接着用。
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input className="field mono" placeholder="/Volumes/移动硬盘/acorn-backup" value={dir ?? s.backup.dir} onChange={(e) => setDir(e.target.value)} />
+            <button className="btn" disabled={dir === null} onClick={() => save({ backup: { ...s.backup, dir: (dir || "").trim() } }).then(() => (setDir(null), toast("已保存")))}>
+              保存
+            </button>
+          </div>
+        </div>
+        <div className="setting-row wrap">
+          <div className="txt">
+            <b>每天自动备份</b>
+            <span>
+              {last
+                ? last.ok
+                  ? `上次 ${relTime(last.at)}：共 ${last.snapshots} 份快照，新复制 ${last.copied} 份${last.bytes ? `（${bytes(last.bytes)}）` : ""}`
+                  : `上次 ${relTime(last.at)} 失败：${last.error}`
+                : "还没有备份过"}
+            </span>
+          </div>
+          <div className="row-controls">
+            <input
+              className="field"
+              type="time"
+              style={{ width: 112, flex: "none" }}
+              value={time(s.backup.cron)}
+              disabled={!s.backup.auto}
+              onChange={(e) => {
+                const [h, m] = e.target.value.split(":").map(Number);
+                if (Number.isFinite(h) && Number.isFinite(m)) save({ backup: { ...s.backup, cron: `${m} ${h} * * *` } });
+              }}
+            />
+            <Switch checked={s.backup.auto} onChange={(v) => save({ backup: { ...s.backup, auto: v } })} />
+            <button className="btn sm" disabled={!s.backup.dir || running} onClick={run}>
+              {running ? <span className="spinner" /> : <HardDrive size={14} />}
+              {running ? (status.data?.progress ? `${status.data.progress.copied} / ${status.data.progress.total}` : "备份中") : "现在备份"}
+            </button>
+          </div>
+        </div>
+        <div className="setting-row wrap">
+          <div className="txt">
+            <b>导出整个库</b>
+            <span>
+              一个 zip 带走全部。「Markdown 包」：每篇存档的正文、图片、附件，每篇文章的批注，订阅列表（OPML），整个文件夹可以直接放进 Obsidian；「完整副本」再加上离线阅读页、原始网页、整页快照和数据库，解压出来就是一个数据目录。
+              {stats ? `存档现在占 ${bytes(stats.archiveBytes)}。` : ""}
+            </span>
+          </div>
+          <div className="row-controls">
+            <a className="btn sm" href="/api/export" download>
+              <Download size={14} />
+              Markdown 包
+            </a>
+            <a className="btn sm" href="/api/export?full=1" download>
+              <Download size={14} />
+              完整副本
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -723,6 +816,8 @@ export function SettingsPage() {
               </div>
             </div>
           </section>
+
+          <Backup s={s} save={save} stats={stats.data} />
 
           <section className="settings-section">
             <h2>账户</h2>

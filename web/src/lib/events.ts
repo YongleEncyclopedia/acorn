@@ -41,6 +41,10 @@ export function useServerEvents(enabled: boolean): void {
           case "fulltext":
             qc.invalidateQueries({ queryKey: keys.entry(ev.entryId) });
             break;
+          case "backup":
+            qc.invalidateQueries({ queryKey: ["backup"] });
+            if (!ev.running) toast(ev.ok ? "备份完成" : `备份失败：${ev.error || "未知原因"}`, ev.ok ? undefined : { kind: "error" });
+            break;
           case "import":
             // one event per link; the lists only need to catch up every so often
             window.clearTimeout(importTimer);

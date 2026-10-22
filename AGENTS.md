@@ -43,7 +43,10 @@ src/server/
   translate/           engine.ts (Ollama / OpenAI-compatible / Anthropic, numbered-segment prompt), index.ts (job queue + cache),
                        summary.ts (key points, cached in the same table under `summary:<lang>`)
   util/net.ts          addresses other devices can reach (LAN, Tailscale, public URL) for login links
-  scheduler.ts         refresh loop, archive recheck, starred→archive sweep, Telegram digest (croner)
+  scheduler.ts         refresh loop, archive recheck, starred→archive sweep, Telegram digest, daily backup (croner)
+  backup.ts            a second data directory: SQLite online backup + new snapshot folders copied once; never deletes
+  export.ts            the library as a ZIP, streamed: Markdown pack (articles + images, notes, OPML) or the full data dir
+  util/zip.ts          dependency-free streaming ZIP writer (deflate, data descriptors, ZIP64)
   notify/telegram.ts
 src/shared/types.ts    API types shared by server and web — change both sides together
 src/shared/translate.ts which article blocks get translated, language detection (runs on linkedom and in the browser)
@@ -93,7 +96,8 @@ tests/                 vitest; fixtures are real pages saved from the web
 Session cookie (web) or `Authorization: Bearer <token>` (CLI/MCP/scripts). JSON under `/api/*`:
 `bootstrap, counts, feeds (+/preview, /:id/refresh, /:id/logs), folders, entries (list/detail/PATCH/fulltext/mark),
 archives (list/detail/POST capture/import/:id/snapshot/:id/recheck/:id/wayback/PATCH/DELETE),
-imports (list/POST file/preview/:id/items/:id/retry/PATCH/DELETE — moving in from other tools), highlights, search, settings,
+imports (list/POST file/preview/:id/items/:id/retry/PATCH/DELETE — moving in from other tools), export (ZIP, ?full=1),
+backup (status/POST run), highlights, search, settings,
 tokens, stats, logs, opml, digest, events (SSE), img (image proxy), translate (+/:id, /models, /test), summary, wechat-bridge (+/sync),
 addresses, login-link`. One-time sign-in: `GET /login/<token>` (public; the token comes from `POST /api/login-link`). Archive files: `/files/archive/<path>`.
 Google Reader API: `/accounts/ClientLogin`, `/reader/api/0/*` (also under `/api/greader`). RSS out: `/out/*.xml?key=`.

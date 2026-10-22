@@ -124,6 +124,11 @@ data/archive/2026/10/<标题>-<id>/<时间戳>/
 
 同一篇文章再入藏时，内容没变就不会重复保存；变了就新增一个时间戳目录，作为新版本。
 
+## 备份与导出
+
+- **自动备份**：「设置 → 备份与导出」填一个目录（外接硬盘、NAS、iCloud 云盘里的文件夹都行），打开每天自动备份。每次只复制数据库和新增的存档，已经复制过的不会重复，也不删任何东西。备份目录本身就是一个完整的数据目录：换台电脑，`ACORN_DATA_DIR=<备份目录> npm start` 就能接着用。命令行：`./bin/acorn backup`。
+- **整库导出**：同一页里的「Markdown 包」把每篇存档的正文（Markdown）、图片、附件，每篇文章的批注，以及订阅列表（OPML）打成一个 zip，整个文件夹可以直接放进 Obsidian、Logseq；「完整副本」再加上离线阅读页、原始网页、整页快照和数据库，解压出来就是一个数据目录。命令行：`./bin/acorn export library.zip [--full]`。
+
 ## 让 Agent 接管
 
 - 命令行：`./bin/acorn help`（所有命令都支持 `--json`）
@@ -135,7 +140,7 @@ data/archive/2026/10/<标题>-<id>/<时间戳>/
 
 - **macOS 开机自启**：`scripts/install-launchd.sh`（卸载：`scripts/uninstall-launchd.sh`）
 - **Docker**：`ACORN_PASSWORD=你的密码 docker compose -f docker/compose.yml up -d`，同时会启动一个自建的 RSSHub。容器里不会出现网页上的「首次设置密码」，所以第一次的密码用环境变量给；之后在设置页改，或用 `docker compose -f docker/compose.yml exec acorn ./bin/acorn passwd 新密码`
-- **备份**：备份整个 `data/` 目录即可
+- **备份**：见下面「备份与导出」；手动的话，整个 `data/` 目录复制走即可
 
 ## 开发
 
