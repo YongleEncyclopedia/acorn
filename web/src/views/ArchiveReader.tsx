@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Camera, Copy, ExternalLink, FileCode2, FileDown, FileText, Globe, Languages, MoreHorizontal, RefreshCcw, RotateCw, Trash2, Type } from "lucide-react";
+import { ArrowLeft, Camera, Copy, ExternalLink, FileCode2, FileDown, FileText, Globe, Languages, MoreHorizontal, RefreshCcw, RotateCw, Sparkles, Trash2, Type } from "lucide-react";
 import { Layout } from "./Layout.tsx";
 import { ArticleView, type ArticleHandle } from "./ArticleView.tsx";
 import { TranslateStatus } from "../components/TranslateStatus.tsx";
+import { SummaryCard, useSummary } from "../components/SummaryCard.tsx";
 import { useReaderTranslation } from "../lib/translate.ts";
 import { useHotkeys } from "../lib/hotkeys.ts";
 import { ReaderPrefsPanel, usePrefs } from "./ReaderPrefs.tsx";
@@ -163,7 +164,8 @@ export function ArchiveReader({ id }: { id: number }) {
   const snap = a ? a.snapshots.find((s) => s.id === snapshotId) || a.snapshots[0] : undefined;
   const trCfg = boot.data?.settings.translate;
   const tr = useReaderTranslation(article, { id: `archive:${id}:${snap?.id || 0}`, html: a?.content || "", title: a?.title || "", cfg: trCfg });
-  useHotkeys({ t: tr.toggle }, !!a);
+  const tldr = useSummary({ archiveId: id }, `${id}:${snap?.id || 0}`, !!a);
+  useHotkeys({ t: tr.toggle, i: tldr.toggle }, !!a);
 
   const recapture = async (method: "fetch" | "browser") => {
     try {
@@ -207,6 +209,9 @@ export function ArchiveReader({ id }: { id: number }) {
               订阅原文
             </Link>
           )}
+          <button className="icon-btn" onClick={tldr.toggle} aria-pressed={!!tldr.data && tldr.open} title="要点（I）" aria-label="要点">
+            {tldr.busy ? <span className="spinner" /> : <Sparkles size={18} />}
+          </button>
           <button className="icon-btn" onClick={tr.toggle} aria-pressed={tr.on} title="翻译（T）" aria-label="翻译">
             {tr.pending ? <span className="spinner" /> : <Languages size={18} />}
           </button>
@@ -274,6 +279,7 @@ export function ArchiveReader({ id }: { id: number }) {
                   <Seal />
                   <div className="rule" />
                 </header>
+                <SummaryCard s={tldr} />
                 <TranslateStatus tr={tr} cfg={trCfg} />
                 <ArticleView ref={article} html={a.content} highlights={a.highlights} target={{ archiveId: a.id }} prefs={prefs} translation={tr.shown} onChanged={changed} />
                 {mobile && <Aside a={a} snapshotId={snap?.id || 0} onSnapshot={setSnapshotId} onChanged={changed} />}

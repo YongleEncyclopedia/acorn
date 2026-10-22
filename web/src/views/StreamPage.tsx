@@ -196,6 +196,7 @@ export function StreamPage({ stream, entryId }: { stream: Stream; entryId: numbe
             onOpen={open}
             onSwipe={onSwipe}
             groupByDay={stream.kind !== "view" || !["starred", "progress", "archived"].includes(stream.view)}
+            titleLang={boot.data?.settings.translate.titles ? boot.data.settings.translate.targetLang : null}
           />
         ) : !boot.data?.feeds.length ? (
           <Empty
@@ -248,7 +249,7 @@ export function StreamPage({ stream, entryId }: { stream: Stream; entryId: numbe
         <Empty art="acorn" title="选一篇文章读读">
           <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
             <kbd>J</kbd>
-            <kbd>K</kbd> 上下篇 <kbd>S</kbd> 稍后读 <kbd>A</kbd> 入藏 <kbd>⌘K</kbd> 搜索
+            <kbd>K</kbd> 上下篇 <kbd>S</kbd> 稍后读 <kbd>A</kbd> 入藏 <kbd>T</kbd> 翻译 <kbd>I</kbd> 要点 <kbd>⌘K</kbd> 搜索
           </span>
         </Empty>
       )}

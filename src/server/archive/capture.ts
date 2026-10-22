@@ -55,7 +55,7 @@ function stamp(ts: number): string {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
-function snapshotText(app: App, dir: string): string {
+export function snapshotText(app: App, dir: string): string {
   const file = path.join(app.cfg.archiveDir, dir, "content.html");
   return existsSync(file) ? htmlToText(readFileSync(file, "utf8")) : "";
 }

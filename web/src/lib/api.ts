@@ -21,6 +21,7 @@ import type {
   Settings,
   Stats,
   TranslationJob,
+  ArticleSummary,
   WechatBridgeStatus,
   WechatBridgeSync,
 } from "../../../src/shared/types.ts";
@@ -116,6 +117,7 @@ export const api = {
   refreshAll: () => post<{ queued: number }>("/api/feeds/refresh"),
   translate: (texts: string[], lang?: string, fresh?: boolean) => post<TranslationJob>("/api/translate", { texts, lang, fresh }),
   translation: (id: string) => get<TranslationJob>(`/api/translate/${id}`),
+  summary: (body: { entryId?: number; archiveId?: number; generate?: boolean; fresh?: boolean }) => post<{ summary: ArticleSummary | null }>("/api/summary", body),
   translateModels: () => get<{ models: string[] }>("/api/translate/models"),
   translateTest: () => post<{ ok: boolean; text?: string; error?: string; ms: number; model?: string }>("/api/translate/test"),
   wechatBridge: () => get<WechatBridgeStatus>("/api/wechat-bridge"),

@@ -3,6 +3,9 @@ import { z } from "zod";
 import type { App } from "../../app.ts";
 import { getTranslation, requestTranslation } from "../../translate/index.ts";
 import { DEFAULT_BASE, TranslateError, translateBatch } from "../../translate/engine.ts";
+import { summarize } from "../../translate/summary.ts";
+import { snapshotText } from "../../archive/capture.ts";
+import { htmlToText } from "../../util/text.ts";
 
 const REQUEST = z.object({ texts: z.array(z.string()).max(1500), lang: z.string().max(20).optional(), fresh: z.boolean().optional() });
 
@@ -37,6 +40,30 @@ export function registerTranslate(r: Hono, app: App): void {
     } catch (err) {
       if (err instanceof TranslateError) return c.json({ ok: false, error: err.message, ms: Date.now() - started }, 200);
       throw err;
+    }
+  });
+
+  const SUMMARY = z.object({ entryId: z.number().int().optional(), archiveId: z.number().int().optional(), generate: z.boolean().optional(), fresh: z.boolean().optional() });
+  r.post("/api/summary", async (c) => {
+    const body = SUMMARY.parse(await c.req.json());
+    let title = "";
+    let text = "";
+    if (body.entryId) {
+      const row = app.entries.row(body.entryId);
+      if (!row) return c.json({ error: "not_found", message: "没有这篇文章" }, 404);
+      title = row.title;
+      text = htmlToText(row.full_content || row.content);
+    } else if (body.archiveId) {
+      const a = app.archives.row(body.archiveId);
+      const snap = a ? app.archives.latestSnapshot(a.id) : undefined;
+      if (!a || !snap) return c.json({ error: "not_found", message: "没有这份存档" }, 404);
+      title = a.title;
+      text = snapshotText(app, snap.dir);
+    } else return c.json({ error: "bad_request", message: "需要 entryId 或 archiveId" }, 400);
+    try {
+      return c.json({ summary: await summarize(app, title, text, body) });
+    } catch (err) {
+      return c.json({ error: "summary", message: (err as Error).message }, err instanceof TranslateError ? 502 : 422);
     }
   });
 

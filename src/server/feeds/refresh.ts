@@ -8,6 +8,8 @@ import { countWords, excerpt, htmlToText } from "../util/text.ts";
 import { absolutize, hostOf } from "../util/url.ts";
 import { fetchFullText } from "../content/fulltext.ts";
 import { fixArticleUrl, ruleFor } from "../content/rules/index.ts";
+import { needsTranslation } from "../../shared/translate.ts";
+import { requestTranslation } from "../translate/index.ts";
 import { archiveEntry } from "../archive/capture.ts";
 import { fetchIcon } from "./icons.ts";
 import { logger } from "../util/log.ts";
@@ -103,6 +105,10 @@ export async function refreshFeed(app: App, feedId: number): Promise<RefreshResu
         if (feed.autoArchive && row.url) app.jobs.add(`archive:entry:${id}`, hostOf(row.url), () => archiveEntry(app, id, "fetch").then(() => undefined), -2);
       }
       app.events.emit({ type: "entries", feedId: feed.id, added: added.length });
+      // Translate new foreign-language titles ahead of time, so lists show them right away.
+      const tr = app.settings.all().translate;
+      const titles = tr.titles ? added.map((id) => app.entries.row(id)?.title || "").filter((t) => needsTranslation(t, tr.targetLang)) : [];
+      if (titles.length) requestTranslation(app, titles);
     }
     // Bridges (we-mp-rss) list articles first and fill in the body later; archive again once it arrives.
     if (feed.autoArchive) {

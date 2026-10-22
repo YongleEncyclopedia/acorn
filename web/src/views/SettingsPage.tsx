@@ -150,12 +150,12 @@ function Translate({ s, save }: { s: Settings; save: (patch: Partial<Settings>) 
   };
   return (
     <section className="settings-section" id="translate">
-      <h2>翻译</h2>
+      <h2>翻译与要点</h2>
       <div className="settings-card">
         <div className="setting-row stack">
           <div className="txt">
-            <b>翻译引擎</b>
-            <span>{engine.hint}</span>
+            <b>模型</b>
+            <span>翻译和「要点」都用这个模型。{engine.hint}</span>
           </div>
           <select className="field" value={engine.id} onChange={(e) => pick(e.target.value)}>
             {ENGINES.map((e) => (
@@ -215,6 +215,13 @@ function Translate({ s, save }: { s: Settings; save: (patch: Partial<Settings>) 
             <span>打开外文文章就开始翻译；关掉时点阅读栏的「译」按钮（快捷键 T）</span>
           </div>
           <Switch checked={cfg.auto} onChange={(v) => save({ translate: { ...cfg, auto: v } })} />
+        </div>
+        <div className="setting-row">
+          <div className="txt">
+            <b>翻译列表里的外文标题</b>
+            <span>标题下面多一行译文，扫一眼就知道值不值得点开；新文章刷新时就先译好</span>
+          </div>
+          <Switch checked={cfg.titles} onChange={(v) => save({ translate: { ...cfg, titles: v } })} />
         </div>
         <div className="setting-row">
           <div className="txt">
@@ -748,6 +755,8 @@ export function SettingsPage() {
                 ["M", "标为已读 / 未读"],
                 ["F", "抓取全文 / 切换原始内容"],
                 ["H", "本文批注"],
+                ["T", "翻译 / 关闭翻译"],
+                ["I", "要点（AI 提炼）"],
                 ["V", "打开原文"],
                 ["R", "刷新"],
                 ["Shift + A", "全部标为已读"],

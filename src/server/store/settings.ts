@@ -13,7 +13,7 @@ export const DEFAULT_SETTINGS: Settings = {
   digest: { enabled: false, cron: "0 8 * * *", folders: [], limit: 12 },
   reader: { theme: "auto", font: "serif", fontSize: 18, lineHeight: 1.85, width: "medium", indent: false, justify: true },
   wechatBridge: { url: "", folder: "公众号", autoArchive: true },
-  translate: { provider: "ollama", baseUrl: "", model: "qwen3:8b", apiKey: "", targetLang: "zh-CN", auto: false, display: "bilingual" },
+  translate: { provider: "ollama", baseUrl: "", model: "qwen3:8b", apiKey: "", targetLang: "zh-CN", auto: false, titles: false, display: "bilingual" },
 };
 
 const MASK = "••••";

@@ -215,7 +215,16 @@ export interface TranslateSettings {
   targetLang: string;
   /** Translate foreign-language articles as soon as they are opened. */
   auto: boolean;
+  /** Show translated titles under foreign-language titles in article lists. */
+  titles: boolean;
   display: "bilingual" | "only";
+}
+
+/** Key points of an article, written by the translation model. */
+export interface ArticleSummary {
+  points: string[];
+  model: string;
+  cached: boolean;
 }
 
 /** A translation request: texts in, translations out (null = not translated yet). */

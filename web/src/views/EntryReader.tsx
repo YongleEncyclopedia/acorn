@@ -17,6 +17,7 @@ import {
   RotateCw,
   Settings2,
   Share2,
+  Sparkles,
   Type,
   X,
 } from "lucide-react";
@@ -32,6 +33,7 @@ import { Seal } from "../components/Seal.tsx";
 import { Empty } from "../components/Empty.tsx";
 import { ArticleView, type ArticleHandle } from "./ArticleView.tsx";
 import { TranslateStatus } from "../components/TranslateStatus.tsx";
+import { SummaryCard, useSummary } from "../components/SummaryCard.tsx";
 import { useReaderTranslation } from "../lib/translate.ts";
 import { ReaderPrefsPanel, usePrefs } from "./ReaderPrefs.tsx";
 import type { Entry, EntrySummary, Highlight } from "../../../src/shared/types.ts";
@@ -99,6 +101,7 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
   const html = entry ? (showFeed && entry.hasFullContent ? entry.feedContent : entry.content) : "";
   const trCfg = boot.data?.settings.translate;
   const tr = useReaderTranslation(article, { id: `entry:${id}`, html, title: entry?.title || "", cfg: trCfg });
+  const tldr = useSummary({ entryId: id }, `${id}:${html.length}`, !!html);
 
   // reset per entry
   useEffect(() => {
@@ -196,6 +199,7 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
       f: loadFull,
       h: () => ui.set((s) => ({ notesPanel: !s.notesPanel })),
       t: tr.toggle,
+      i: tldr.toggle,
       Escape: () => (notesOpen ? ui.set({ notesPanel: false }) : onBack()),
     },
     !!entry,
@@ -261,6 +265,9 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
             </button>
             <button className="icon-btn" onClick={() => ui.set((s) => ({ notesPanel: !s.notesPanel }))} aria-pressed={notesOpen} title="批注（H）" aria-label="批注">
               <Highlighter size={18} />
+            </button>
+            <button className="icon-btn" onClick={tldr.toggle} aria-pressed={!!tldr.data && tldr.open} title="要点（I）" aria-label="要点">
+              {tldr.busy ? <span className="spinner" /> : <Sparkles size={18} />}
             </button>
             <button className="icon-btn" onClick={tr.toggle} aria-pressed={tr.on} title="翻译（T）" aria-label="翻译">
               {tr.pending ? <span className="spinner" /> : <Languages size={18} />}
@@ -334,6 +341,7 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
             )}
             <div className="rule" />
           </header>
+          <SummaryCard s={tldr} />
           <TranslateStatus tr={tr} cfg={trCfg} />
           <ArticleView ref={article} html={html} highlights={highlights} target={{ entryId: entry.id }} prefs={prefs} translation={tr.shown} onChanged={refreshEntry} />
           <ArticleEnd entry={entry} next={next} onNext={onNext} onStar={toggleStar} onArchive={() => capture("fetch")} />
@@ -353,6 +361,9 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
           </button>
           <button className="icon-btn" onClick={() => ui.set((s) => ({ notesPanel: !s.notesPanel }))} aria-label="批注">
             <Highlighter size={20} />
+          </button>
+          <button className="icon-btn" onClick={tldr.toggle} aria-pressed={!!tldr.data && tldr.open} aria-label="要点">
+            {tldr.busy ? <span className="spinner" /> : <Sparkles size={20} />}
           </button>
           <button className="icon-btn" onClick={tr.toggle} aria-pressed={tr.on} aria-label="翻译">
             {tr.pending ? <span className="spinner" /> : <Languages size={20} />}

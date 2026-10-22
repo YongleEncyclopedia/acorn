@@ -14,6 +14,7 @@ import { createApp, ensureCliToken, type App } from "../src/server/app.ts";
 import { createHttp } from "../src/server/api/http.ts";
 import { blockText, isForeign, needsTranslation, translatableBlocks, TR_ATTR } from "../src/shared/translate.ts";
 import { buildPrompt, parseReply } from "../src/server/translate/engine.ts";
+import { parsePoints, summarize } from "../src/server/translate/summary.ts";
 import type { TranslationJob } from "../src/shared/types.ts";
 
 process.env.ACORN_SILENT = "1";
@@ -53,6 +54,10 @@ describe("translatable blocks", () => {
 });
 
 describe("model replies", () => {
+  it("reads key points in whatever list style the model picks", () => {
+    expect(parsePoints("- 一\n2. 二\n* **三**\n\n• 四\n5、3.5 亿人")).toEqual(["一", "二", "三", "四", "3.5 亿人"]);
+  });
+
   it("numbers segments and reads them back", () => {
     expect(buildPrompt(["a", "b"])).toBe("[[1]] a\n\n[[2]] b");
     expect(parseReply("<think>hmm</think>\n[[1]] 甲\n[[2]] 乙\n", 2)).toEqual(["甲", "乙"]);
@@ -85,6 +90,8 @@ describe("translation flow", () => {
         res.end(JSON.stringify(data));
       };
       const user = body.messages?.find((m: { role: string }) => m.role === "user")?.content || "";
+      const system = body.messages?.find((m: { role: string }) => m.role === "system")?.content || body.system || "";
+      if (req.url === "/api/chat" && /key points/.test(system)) return json(200, { message: { role: "assistant", content: "<think></think>\n- 松鼠埋下的橡果比吃掉的多\n- 2. 被忘掉的橡果长成了森林\n* **存档**：原文没了，副本还在" } });
       if (req.url === "/api/tags") return json(200, { models: [{ name: "qwen3:14b" }] });
       if (req.url === "/api/chat") {
         if (body.model !== "qwen3:14b") return json(404, { error: `model "${body.model}" not found, try pulling it first` });
@@ -158,6 +165,22 @@ describe("translation flow", () => {
     const job = await translate(["Another sentence to translate"]);
     expect(job.items).toEqual(["译:Another sentence to translate"]);
     expect(calls.at(-1)!.auth).toBe("Bearer sk-secret-1234");
+  });
+
+  it("writes key points once, then serves them from the cache", async () => {
+    await configure({ provider: "ollama", baseUrl: base, model: "qwen3:14b", apiKey: "" });
+    const text = "松鼠在秋天把橡果一颗颗埋进土里。".repeat(40);
+    expect(await summarize(app, "松鼠", text)).toBeNull(); // nothing cached, not asked to generate
+    const before = calls.length;
+    const first = await summarize(app, "松鼠", text, { generate: true });
+    expect(first?.points).toEqual(["松鼠埋下的橡果比吃掉的多", "被忘掉的橡果长成了森林", "存档：原文没了，副本还在"]);
+    expect(first?.cached).toBe(false);
+    const again = await summarize(app, "松鼠", text, { generate: true });
+    expect(again?.cached).toBe(true);
+    expect(calls.length).toBe(before + 1);
+    await summarize(app, "松鼠", text, { generate: true, fresh: true });
+    expect(calls.length).toBe(before + 2);
+    await expect(summarize(app, "短", "太短了", { generate: true })).rejects.toThrow(/太短/);
   });
 
   it("talks to Claude through the Messages API", async () => {
