@@ -18,7 +18,7 @@ for (let i = 0; i < argv.length; i += 1) {
   if (a.startsWith("--")) {
     const [k, v] = a.slice(2).split("=", 2);
     if (v !== undefined) flags[k] = v;
-    else if (argv[i + 1] && !argv[i + 1].startsWith("--") && !["json", "unread", "browser", "gone", "send", "markdown", "all", "star", "unstar", "read", "dry-run", "no-wayback"].includes(k)) flags[k] = argv[++i];
+    else if (argv[i + 1] && !argv[i + 1].startsWith("--") && !["json", "unread", "browser", "gone", "send", "markdown", "all", "star", "unstar", "read", "dry-run", "no-wayback", "full"].includes(k)) flags[k] = argv[++i];
     else flags[k] = true;
   } else args.push(a);
 }
@@ -74,6 +74,7 @@ const HELP = `松果 Acorn 命令行
   recheck <存档ID>                检查原文是否还在
   import <文件> [--tag 标签] [--no-wayback] [--dry-run]   搬家：书签 / Pocket / Instapaper / Raindrop 导出文件里的链接全部入藏
   imports                        搬家进度
+  export <文件.zip> [--full]      整库导出：Markdown 包；--full 是完整副本（含原始网页和数据库）
   notes [--q 关键词]              批注
 
 其他
@@ -275,6 +276,12 @@ async function main(): Promise<void> {
           console.log(`   已藏 ${n.done} · 找回 ${n.rescued} · 本来就在 ${n.skipped} · 失效 ${n.gone ? red(n.gone) : 0} · 失败 ${n.failed ? red(n.failed) : 0}`);
         }
       });
+    }
+    case "export": {
+      const file = args[0];
+      if (!file) throw new Error("需要输出文件：acorn export library.zip [--full]");
+      const size = await api.exportTo(file, !!flags.full);
+      return out({ file, bytes: size }, () => console.log(`已导出 ${file}（${(size / 1048576).toFixed(1)} MB）`));
     }
     case "login-link": {
       const l = await api.loginLink();

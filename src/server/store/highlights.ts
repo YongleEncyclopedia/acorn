@@ -141,6 +141,11 @@ export class HighlightStore {
     return this.db.run("delete from highlights where id = ?", id).changes > 0;
   }
 
+  /** Everything, oldest first, with the article each one belongs to (for exports). */
+  all(): Highlight[] {
+    return this.db.all<HighlightRow>(`${LIST_SQL} order by h.created_at, h.id`).map(toHighlight);
+  }
+
   count(): number {
     return this.db.get<{ n: number }>("select count(*) n from highlights")?.n ?? 0;
   }

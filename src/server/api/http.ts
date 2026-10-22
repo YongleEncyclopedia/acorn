@@ -10,6 +10,7 @@ import { registerEntries } from "./routes/entries.ts";
 import { registerArchives } from "./routes/archives.ts";
 import { registerTranslate } from "./routes/translate.ts";
 import { registerImports } from "./routes/imports.ts";
+import { registerData } from "./routes/data.ts";
 import { registerGReader } from "./greader.ts";
 import { registerOutputs } from "./outputs.ts";
 import { SourceChoiceError } from "../feeds/add.ts";
@@ -102,6 +103,7 @@ export function createHttp(app: App, hooks: Hooks = {}): Hono {
   registerArchives(r, app);
   registerTranslate(r, app);
   registerImports(r, app);
+  registerData(r, app);
   registerGReader(r, app);
   registerOutputs(r, app);
 

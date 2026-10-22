@@ -2,8 +2,11 @@
  * Typed HTTP client for a running Acorn server. Used by the CLI and the MCP server so that agents go through
  * exactly the same code paths as the web app. Auth: ACORN_TOKEN, or the token the server writes to data/.cli-token.
  */
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, createWriteStream, statSync } from "node:fs";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import { ROOT } from "../server/config.ts";
 import type {
   ArchiveDetail,
@@ -134,6 +137,13 @@ export function createClient(baseUrl = defaultBaseUrl(), token = defaultToken())
     imports: () => call<ImportBatch[]>("GET", "/api/imports"),
     importItems: (id: number, status: string) => call<ImportItem[]>("GET", `/api/imports/${id}/items${qs({ status })}`),
     retryImport: (id: number) => call<{ changed: number }>("POST", `/api/imports/${id}/retry`, {}),
+    /** Download the whole library as a ZIP into `file`; returns its size. */
+    exportTo: async (file: string, full = false) => {
+      const res = await fetch(`${baseUrl}/api/export${full ? "?full=1" : ""}`, { headers: { authorization: `Bearer ${token}` } });
+      if (!res.ok || !res.body) throw new AcornError(res.status, await res.text());
+      await pipeline(Readable.fromWeb(res.body as unknown as WebReadableStream), createWriteStream(file));
+      return statSync(file).size;
+    },
     patchArchive: (id: number, body: { title?: string; tags?: string[]; note?: string | null }) => call<ArchiveDetail>("PATCH", `/api/archives/${id}`, body),
     highlights: (q?: string, limit = 50) => call<Page<Highlight>>("GET", `/api/highlights${qs({ q, limit })}`),
     addHighlight: (body: { entryId?: number; archiveId?: number; quote: string; note?: string; color?: HighlightColor }) =>
