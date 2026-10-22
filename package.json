@@ -5,8 +5,12 @@
   "description": "Acorn 松果：完全属于你的信息系统。订阅、阅读、批注、本地存档。",
   "type": "module",
   "license": "AGPL-3.0-or-later",
-  "engines": { "node": ">=22.18" },
-  "bin": { "acorn": "./bin/acorn" },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "bin": {
+    "acorn": "./bin/acorn"
+  },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env src/server/main.ts",
     "dev": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env --watch-path=src src/server/main.ts",
@@ -27,6 +31,7 @@
     "feedsmith": "3.0.1",
     "hono": "4.13.11",
     "linkedom": "0.18.13",
+    "qrcode-generator": "2.0.4",
     "sanitize-html": "2.17.7",
     "turndown": "7.2.4",
     "zod": "4.6.5"

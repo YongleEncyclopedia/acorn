@@ -74,6 +74,7 @@ const HELP = `松果 Acorn 命令行
   notes [--q 关键词]              批注
 
 其他
+  login-link                     在终端里显示二维码，手机扫一下就登录（10 分钟内有效，只能用一次）
   digest [--send]                预览 / 发送 Telegram 摘要
   passwd <新密码>                 直接修改密码（服务可以不运行）
   help
@@ -242,6 +243,18 @@ async function main(): Promise<void> {
         for (const w of r.warnings) console.log(dim(`  · ${w}`));
       });
     }
+    case "login-link": {
+      const l = await api.loginLink();
+      const [first, ...rest] = l.origins;
+      const qr = first && !json ? await terminalQr(`${first.origin}${l.path}`) : "";
+      return out(l, () => {
+        if (!first) return console.log(red("松果只在本机监听（ACORN_HOST=127.0.0.1），手机连不上。"));
+        console.log(qr);
+        console.log(`${bold(first.label.replace(/ .*/, ""))} ${first.origin}${l.path}`);
+        for (const o of rest) console.log(`${dim(o.label.replace(/ .*/, ""))} ${o.origin}${l.path}`);
+        console.log(dim("10 分钟内有效，只能用一次。"));
+      });
+    }
     case "wechat": {
       if (typeof flags.url === "string") {
         const s = await api.settings();
@@ -331,3 +344,24 @@ main().catch((err: Error) => {
   else console.error(red(`✗ ${err.message}`));
   process.exitCode = 1;
 });
+
+/** A QR code drawn with half blocks, black on white so it scans on dark terminals too. */
+async function terminalQr(text: string): Promise<string> {
+  const { default: qrcode } = await import("qrcode-generator");
+  const qr = qrcode(0, "M");
+  qr.addData(text);
+  qr.make();
+  const n = qr.getModuleCount();
+  const dark = (r: number, c: number) => r >= 0 && c >= 0 && r < n && c < n && qr.isDark(r, c);
+  const lines: string[] = [];
+  for (let r = -2; r < n + 2; r += 2) {
+    let line = "";
+    for (let c = -2; c < n + 2; c++) {
+      const top = dark(r, c);
+      const bottom = dark(r + 1, c);
+      line += top && bottom ? "█" : top ? "▀" : bottom ? "▄" : " ";
+    }
+    lines.push(`\x1b[30;47m${line}\x1b[0m`);
+  }
+  return lines.join("\n");
+}

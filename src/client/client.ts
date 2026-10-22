@@ -92,6 +92,7 @@ export function createClient(baseUrl = defaultBaseUrl(), token = defaultToken())
     refreshFeed: (id: number) => call<{ added: number; error?: string }>("POST", `/api/feeds/${id}/refresh?wait=1`),
     refreshAll: () => call<{ queued: number }>("POST", "/api/feeds/refresh"),
     wechatBridge: () => call<WechatBridgeStatus>("GET", "/api/wechat-bridge"),
+    loginLink: () => call<{ path: string; expiresAt: number; origins: { label: string; origin: string }[] }>("POST", "/api/login-link"),
     wechatSync: () => call<WechatBridgeSync>("POST", "/api/wechat-bridge/sync"),
     entries: (q: { view?: EntryView; feed?: number; folder?: number; unread?: boolean; limit?: number; cursor?: string; q?: string }) =>
       call<Page<EntrySummary>>("GET", `/api/entries${qs(q)}`),

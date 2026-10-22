@@ -206,3 +206,27 @@ describe("outputs and safety", () => {
     expect(existsSync(path.join(dataDir, ".cli-token"))).toBe(true);
   });
 });
+
+describe("signing in another device", () => {
+  it("logs a phone in once with a QR link, then refuses the same link", async () => {
+    const link = await json("/api/login-link", { method: "POST" });
+    expect(link.path).toMatch(/^\/login\/[\w-]{20,}$/);
+    expect(Array.isArray(link.origins)).toBe(true); // which addresses depends on the machine
+
+    const first = await web.request(link.path);
+    expect(first.status).toBe(302);
+    expect(first.headers.get("location")).toBe("/");
+    const cookie = (first.headers.get("set-cookie") || "").split(";")[0];
+    expect(cookie).toMatch(/^acorn_session=/);
+    const session = await (await web.request("/api/session", { headers: { cookie } })).json();
+    expect(session.authenticated).toBe(true);
+
+    const again = await web.request(link.path);
+    expect(again.headers.get("location")).toBe("/?login=expired");
+    expect(again.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("does not hand out links to anyone who is not signed in", async () => {
+    expect((await web.request("/api/login-link", { method: "POST" })).status).toBe(401);
+  });
+});

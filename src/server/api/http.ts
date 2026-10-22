@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -16,7 +16,8 @@ import { HttpError } from "../util/http.ts";
 import { NotAFeedError } from "../feeds/parse.ts";
 import { BlockedError } from "../archive/capture.ts";
 import { BrowserBlockedError } from "../archive/browser.ts";
-import { clearSession, hasPassword, isAuthenticated, isLoopback, issueSession, loginAllowed, setPassword, verifyPassword } from "./auth.ts";
+import { clearSession, createLoginLink, hasPassword, isAuthenticated, isLoopback, issueSession, loginAllowed, redeemLoginLink, setPassword, verifyPassword } from "./auth.ts";
+import { reachableOrigins } from "../util/net.ts";
 import { logger } from "../util/log.ts";
 
 const log = logger("http");
@@ -102,6 +103,27 @@ export function createHttp(app: App, hooks: Hooks = {}): Hono {
   registerOutputs(r, app);
 
   r.get("/api/health", (c) => c.json({ ok: true }));
+
+  // Addresses other devices can use (LAN, Tailscale, the public URL), plus the one this request came in on,
+  // unless that one only means "this computer".
+  const origins = (c: Context) => {
+    const here = new URL(c.req.url);
+    const list = reachableOrigins(app.cfg.port, app.cfg.publicUrl, app.cfg.host);
+    if (!/^(localhost|127\.|\[::1\])/.test(here.hostname) && !list.some((o) => o.origin === here.origin)) list.push({ label: "当前地址", origin: here.origin });
+    return list;
+  };
+  r.get("/api/addresses", (c) => c.json({ origins: origins(c) }));
+  // Sign in another device: a signed-in device asks for a one-time link and shows it as a QR code.
+  r.post("/api/login-link", (c) => {
+    const { token, expiresAt } = createLoginLink();
+    return c.json({ path: `/login/${token}`, expiresAt, origins: origins(c) });
+  });
+  r.get("/login/:token", (c) => {
+    if (!redeemLoginLink(c.req.param("token"))) return c.redirect("/?login=expired");
+    issueSession(app, c);
+    log.info(`signed in with a login link from ${c.req.header("x-forwarded-for") || "a device on the network"}`);
+    return c.redirect("/");
+  });
   r.all("/api/*", (c) => c.json({ error: "not_found" }, 404));
 
   // ---- web app (built by Vite into dist/web) ----

@@ -101,3 +101,22 @@ export function loginAllowed(c: Context): boolean {
   attempts.set(ip, list);
   return list.length <= 8;
 }
+
+// ---- one-time login links (sign in on a phone by scanning a QR code shown on a device that is signed in) ----
+const LINK_TTL = 10 * 60_000;
+const links = new Map<string, number>();
+
+export function createLoginLink(): { token: string; expiresAt: number } {
+  const now = Date.now();
+  for (const [t, exp] of links) if (exp < now) links.delete(t);
+  const token = randomBytes(24).toString("base64url");
+  links.set(token, now + LINK_TTL);
+  return { token, expiresAt: now + LINK_TTL };
+}
+
+/** True once per link, while it has not expired. */
+export function redeemLoginLink(token: string): boolean {
+  const exp = links.get(token);
+  links.delete(token);
+  return !!exp && exp > Date.now();
+}

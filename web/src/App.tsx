@@ -25,7 +25,8 @@ import type { EntryView } from "../../src/shared/types.ts";
 function AuthScreen({ setup, canSetup, onDone }: { setup: boolean; canSetup: boolean; onDone: () => void }) {
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
-  const [err, setErr] = useState("");
+  // A one-time login link that was already used or expired lands here with ?login=expired.
+  const [err, setErr] = useState(() => (new URLSearchParams(window.location.search).get("login") === "expired" ? "这个登录二维码已经用过或过期了，请在电脑上重新生成，或用密码登录" : ""));
   const [busy, setBusy] = useState(false);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

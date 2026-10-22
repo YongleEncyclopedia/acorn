@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, KeyRound, LogOut, Menu as MenuIcon, Plus, Rss, ScrollText, Send, Trash2 } from "lucide-react";
+import { Copy, KeyRound, LogOut, Menu as MenuIcon, Plus, Rss, ScrollText, Send, Smartphone, Trash2 } from "lucide-react";
 import { Layout } from "./Layout.tsx";
 import { FontPicker, ThemePicker, usePrefs } from "./ReaderPrefs.tsx";
 import { api } from "../lib/api.ts";
@@ -12,6 +12,7 @@ import { toast, toastError, ui } from "../lib/store.ts";
 import { Segmented, Slider, Switch } from "../components/Controls.tsx";
 import { Dialog } from "../components/Dialog.tsx";
 import { Seal } from "../components/Seal.tsx";
+import { PhoneLogin } from "../components/PhoneLogin.tsx";
 import type { Bootstrap, Settings, TranslateSettings } from "../../../src/shared/types.ts";
 import { TARGET_LANGS } from "../../../src/shared/translate.ts";
 
@@ -358,7 +359,11 @@ export function SettingsPage() {
   const [pw, setPw] = useState({ current: "", next: "" });
   const [showLogs, setShowLogs] = useState(false);
   const [digestPreview, setDigestPreview] = useState<string | null>(null);
+  const [phoneLogin, setPhoneLogin] = useState(false);
   const origin = window.location.origin;
+  // Readers and shortcuts run on other devices: show an address they can reach, not this browser's localhost.
+  const addrs = useQuery({ queryKey: ["addresses"], queryFn: api.addresses, staleTime: 60_000 });
+  const deviceOrigin = addrs.data?.origins[0]?.origin || origin;
   const bookmarklet = `javascript:(()=>{window.open('${origin}/capture?url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title))})()`;
   const ready = !!s && !!boot.data;
   useEffect(() => {
@@ -550,18 +555,21 @@ export function SettingsPage() {
               <div className="setting-row stack">
                 <div className="txt">
                   <b>在手机和平板上用</b>
-                  <span>
-                    同一个局域网里，用手机浏览器打开下面的地址，再「添加到主屏幕」，就是一个 App。出门在外推荐装 Tailscale，不用把松果暴露到公网。
-                  </span>
+                  <span>扫一个二维码就能在手机上打开松果，不用输地址和密码；再「添加到主屏幕」，就是一个 App。出门在外推荐装 Tailscale，不用把松果暴露到公网。</span>
                 </div>
-                <CodeLine text={origin} />
+                <div>
+                  <button className="btn primary" onClick={() => setPhoneLogin(true)}>
+                    <Smartphone size={16} />
+                    扫码在手机上登录
+                  </button>
+                </div>
               </div>
               <div className="setting-row stack">
                 <div className="txt">
                   <b>用 Reeder、NetNewsWire、Read You 等阅读器</b>
                   <span>账号类型选 FreshRSS 或 Google Reader API。服务器地址填下面这个，用户名随意，密码填松果密码。在阅读器里加星标，松果会自动入藏。</span>
                 </div>
-                <CodeLine text={origin} />
+                <CodeLine text={deviceOrigin} />
               </div>
               <div className="setting-row stack">
                 <div className="txt">
@@ -580,7 +588,7 @@ export function SettingsPage() {
                   <b>iPhone 分享菜单</b>
                   <span>在「快捷指令」里新建：接收「URL」→「打开 URL」，地址填下面这行，末尾接上快捷指令输入。安卓手机把松果添加到主屏幕后，可以直接在分享菜单里选它。</span>
                 </div>
-                <CodeLine text={`${origin}/capture?url=`} />
+                <CodeLine text={`${deviceOrigin}/capture?url=`} />
               </div>
             </div>
           </section>
@@ -778,6 +786,7 @@ export function SettingsPage() {
         </div>
       </main>
       {showLogs && <Logs onClose={() => setShowLogs(false)} />}
+      {phoneLogin && <PhoneLogin onClose={() => setPhoneLogin(false)} />}
       {digestPreview && (
         <Dialog title="摘要预览" onClose={() => setDigestPreview(null)}>
           <div className="code-line" style={{ display: "block", whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
