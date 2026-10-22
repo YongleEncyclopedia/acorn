@@ -55,6 +55,14 @@ export function parseLooseDate(input: unknown, now: number = Date.now()): number
     const t = new Date(Number(ymThenDay[1]), Number(ymThenDay[2]) - 1, Number(ymThenDay[3])).getTime();
     return Number.isNaN(t) ? null : t;
   }
+  // …and "09.30 2026" (month.day, then the year) or "2026 09.30".
+  const mdThenYear = s.match(/^(\d{1,2})\s*[-/.]\s*(\d{1,2})\s+(\d{4})$/);
+  const yearThenMd = s.match(/^(\d{4})\s+(\d{1,2})\s*[-/.]\s*(\d{1,2})$/);
+  if (mdThenYear || yearThenMd) {
+    const [y, mo, d] = mdThenYear ? [mdThenYear[3], mdThenYear[1], mdThenYear[2]] : [yearThenMd![1], yearThenMd![2], yearThenMd![3]];
+    const t = new Date(Number(y), Number(mo) - 1, Number(d)).getTime();
+    return Number.isNaN(t) ? null : t;
+  }
 
   const full = s.match(/(\d{4})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*日?(?:\D{0,3}(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
   if (full) {
@@ -81,5 +89,11 @@ export const DATE_PATTERN = /(\d{4}\s*[-/.年]\s*\d{1,2}\s*[-/.月]\s*\d{1,2}日
 export function isDateText(text: string): boolean {
   const t = text.replace(/\s+/g, " ").trim();
   if (!t || t.length > 30) return false;
-  return DATE_PATTERN.test(t) || /^\d{1,2}\s+\d{4}\s*[-/.年]\s*\d{1,2}月?$/.test(t) || /^\d{4}\s*[-/.年]\s*\d{1,2}月?\s+\d{1,2}日?$/.test(t);
+  return (
+    DATE_PATTERN.test(t) ||
+    /^\d{1,2}\s+\d{4}\s*[-/.年]\s*\d{1,2}月?$/.test(t) ||
+    /^\d{4}\s*[-/.年]\s*\d{1,2}月?\s+\d{1,2}日?$/.test(t) ||
+    /^\d{1,2}\s*[-/.]\s*\d{1,2}\s+\d{4}$/.test(t) ||
+    /^\d{4}\s+\d{1,2}\s*[-/.]\s*\d{1,2}$/.test(t)
+  );
 }

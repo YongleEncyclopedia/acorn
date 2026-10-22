@@ -26,6 +26,8 @@ export async function fetchFullText(app: App, entryId: number): Promise<{ ok: bo
     if (!article) throw new Error("没能从网页中提取出正文");
     app.entries.setFullContent(entryId, article.contentHtml, null, row.title || article.title, article.wordCount);
     if (!row.image && article.leadImage) app.db.run("update entries set image = ? where id = ?", article.leadImage, entryId);
+    // Lists without dates: the article page usually has one, which puts the entry in its real place in time.
+    if (!row.published_at && article.publishedAt) app.db.run("update entries set published_at = ? where id = ?", article.publishedAt, entryId);
     app.events.emit({ type: "fulltext", entryId, ok: true });
     return { ok: true };
   } catch (err) {

@@ -104,6 +104,8 @@ export interface ExtractOptions {
   contentSelector?: string;
 }
 
+const LABELED_DATE = /(?:发布|发表|发文|更新|上传)(?:日期|时间)\s*[:：]\s*(\d{4}\s*[-/.年]\s*\d{1,2}\s*[-/.月]\s*\d{1,2}日?(?:\s*\d{1,2}:\d{2}(?::\d{2})?)?)/;
+
 /**
  * Turn a full HTML page into a clean article. Order: site rule → explicit selector → Readability.
  * Returns null when nothing article-like could be found.
@@ -120,6 +122,9 @@ export function extractArticle(html: string, pageUrl: string, opts: ExtractOptio
   const metaPublished =
     parseLooseDate(meta(doc, "article:published_time", "og:published_time", "pubdate", "publishdate", "datePublished", "publish_date", "PubDate")) ??
     parseLooseDate(doc.querySelector("time[datetime]")?.getAttribute("datetime"));
+  // Chinese CMS pages print it in the text: "发布日期：2026-07-29", "发布时间：2026年7月29日 10:00".
+  const visible = html.slice(0, 400_000).replace(/<!--[\s\S]*?-->|<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;|\u00a0/g, " ");
+  const labeledPublished = parseLooseDate(visible.match(LABELED_DATE)?.[1]);
   const metaImage = absolutize(meta(doc, "og:image", "twitter:image", "og:image:url"), base);
   const lang = doc.documentElement?.getAttribute("lang") || null;
 
@@ -167,7 +172,7 @@ export function extractArticle(html: string, pageUrl: string, opts: ExtractOptio
   }
   if (!result?.contentHtml) return null;
 
-  const contentHtml = sanitize(result.contentHtml, base);
+  const contentHtml = trimArticleHead(sanitize(result.contentHtml, base), [result.title, readTitle, metaTitle]);
   const text = htmlToText(contentHtml);
   if (text.length < 30 && !/<img/i.test(contentHtml)) return null;
   const firstImg = contentHtml.match(/<img[^>]+src="([^"]+)"/i)?.[1] || null;
@@ -175,7 +180,7 @@ export function extractArticle(html: string, pageUrl: string, opts: ExtractOptio
     title: (result.title || readTitle || metaTitle || "").trim(),
     byline: result.author || readByline || metaAuthor || null,
     siteName: cleanSiteName(result.siteName || metaSite),
-    publishedAt: result.publishedAt ?? metaPublished ?? null,
+    publishedAt: result.publishedAt ?? metaPublished ?? labeledPublished ?? null,
     lang,
     contentHtml,
     text,
@@ -195,4 +200,49 @@ export function pageMetadata(html: string, pageUrl: string): { title: string; de
     image: absolutize(meta(doc, "og:image", "twitter:image"), pageUrl),
     siteName: meta(doc, "og:site_name"),
   };
+}
+
+const HEAD_BLOCKS = "h1,h2,h3,h4,h5,h6,p,div,section,li,td,blockquote,figure,header,table,ul,ol";
+const META_LINE = /^(发布(时间|日期|者|人)?|发表(时间|日期)|更新(时间|日期)|来源|作者|编辑|责任编辑|审核|撰稿|摄影|供稿|点击(数|量|次数)?|浏览(次数|量|数)?|阅读(次数|量|数)?|访问(量|次数)|字号|字体|分享(到|至)?|打印|关闭|收藏)\s*[:：]?/;
+const squash = (s: string) => s.replace(/[\s\p{P}\p{S}]/gu, "");
+
+/** The first thing a reader would see: an image, or the first block with text and no blocks inside. */
+function firstVisible(root: Element): Element | null {
+  for (const el of root.querySelectorAll("*")) {
+    if (el.tagName === "IMG" || el.tagName === "VIDEO" || el.tagName === "IFRAME") return el;
+    if (!el.matches(HEAD_BLOCKS) || el.querySelector(HEAD_BLOCKS)) continue;
+    if ((el.textContent || "").trim()) return el;
+  }
+  return null;
+}
+
+/**
+ * Drop page furniture that CMS templates put inside the article container: the title repeated as a heading and the
+ * "发布时间 / 点击数 / 分享至" lines under it. Only looks at the top and stops at the first real paragraph or image.
+ */
+export function trimArticleHead(html: string, titles: (string | null | undefined)[]): string {
+  if (!html) return html;
+  const { document } = parseHTML(`<!doctype html><html><body><div id="acorn-head-root">${html}</div></body></html>`);
+  const root = document.getElementById("acorn-head-root");
+  if (!root) return html;
+  const names = titles.map((t) => squash(t || "")).filter((t) => t.length >= 4);
+  let removed = 0;
+  for (let i = 0; i < 8; i++) {
+    const el = firstVisible(root);
+    if (!el || el.tagName === "IMG" || el.tagName === "VIDEO" || el.tagName === "IFRAME") break;
+    const text = (el.textContent || "").replace(/\s+/g, " ").trim();
+    const flat = squash(text);
+    const heading = /^H[1-6]$/.test(el.tagName);
+    const isTitle = names.some((t) => t === flat || (heading && flat.length >= 6 && t.startsWith(flat)));
+    const isMeta = text.length <= 80 && (META_LINE.test(text) || /^[\d\s.:：\-/年月日]+$/.test(text));
+    if (!isTitle && !isMeta) break;
+    // remove the block and any wrappers it leaves empty
+    let gone: Element = el;
+    while (gone.parentElement && gone.parentElement !== root && !(gone.parentElement.textContent || "").replace(gone.textContent || "", "").trim() && !gone.parentElement.querySelector("img,video,iframe")) {
+      gone = gone.parentElement;
+    }
+    gone.remove();
+    removed++;
+  }
+  return removed ? root.innerHTML : html;
 }

@@ -23,23 +23,52 @@ function pick(root: Element, sel: string | undefined, defaultAttr: string | null
   return { el, value };
 }
 
+/** Text with a space between child elements, so "<div>09.30</div><div>2026</div>" reads "09.30 2026", not "09.302026". */
+function spacedText(el: Element): string {
+  let s = "";
+  const walk = (n: Node) => {
+    for (const c of n.childNodes) {
+      if (c.nodeType === 3) s += c.nodeValue || "";
+      else if (c.nodeType === 1) {
+        s += " ";
+        walk(c);
+        s += " ";
+      }
+    }
+  };
+  walk(el);
+  return s.replace(/\s+/g, " ").trim();
+}
+
 const DATE_CLASS = /(^|[\s_-])(date|time|sj|rq|riqi|shijian|pubtime|pubdate|day|fbsj)([\s_-]|$)/i;
 
 /** The element inside an item that holds its date: a date-ish class name first, then any short date-only text. */
 export function findDateElement(item: Element): Element | null {
   for (const el of item.querySelectorAll("*")) {
     const sig = `${el.getAttribute("class") || ""} ${el.getAttribute("id") || ""}`;
-    if (DATE_CLASS.test(sig) && isDateText(el.textContent || "")) return el;
+    if (DATE_CLASS.test(sig) && isDateText(spacedText(el))) return el;
   }
   for (const el of item.querySelectorAll("span, em, i, td, div, p, time, font, b, small")) {
     if (el.querySelector("a")) continue;
-    if (isDateText(el.textContent || "")) return el;
+    if (isDateText(spacedText(el))) return el;
   }
   return null;
 }
 
+const TITLE_CLASS = /(^|[\s_-])(title|tit|bt|biaoti|name|subject)([\s_-]|$)/i;
+
+/** Text of a link that wraps a whole list entry: its title element if it has one, otherwise everything but the date. */
+function anchorText(a: Element): string {
+  const named = [...a.querySelectorAll("*")].find((el) => TITLE_CLASS.test(el.getAttribute("class") || "") && (el.textContent || "").trim().length >= 4);
+  if (named) return named.textContent || "";
+  if (!a.querySelector("div, p, span, h2, h3, h4, time")) return a.textContent || "";
+  const copy = a.cloneNode(true) as Element;
+  findDateElement(copy)?.remove();
+  return copy.textContent || "";
+}
+
 function bestTitle(a: Element | null, fallbackText: string): string {
-  const text = (a?.textContent || fallbackText).replace(/\s+/g, " ").trim();
+  const text = (a ? anchorText(a) : fallbackText).replace(/\s+/g, " ").trim();
   const attr = a?.getAttribute("title")?.trim() || "";
   // School sites often truncate titles in the text and keep the full one in title="".
   if (attr && (attr.length > text.length || /(\.\.\.|…)$/.test(text))) return attr;
@@ -53,16 +82,24 @@ export function scrapeList(html: string, pageUrl: string, rule: HtmlRule): Parse
   const out: ParsedItem[] = [];
   const seen = new Set<string>();
   for (const item of document.querySelectorAll(rule.item)) {
-    const titlePick = rule.title ? pick(item, rule.title) : { el: item.querySelector("a[href]"), value: "" };
+    // Some CMSs make each entry one big link (<a class="item"><div class="day">…<div class="title">…</a>).
+    const selfLink = item.matches("a[href]") ? item : null;
+    const titlePick = rule.title ? pick(item, rule.title) : { el: selfLink || item.querySelector("a[href]"), value: "" };
     const titleEl = titlePick.el;
-    const anchor = titleEl?.closest?.("a[href]") || (titleEl?.matches?.("a[href]") ? titleEl : null) || item.querySelector("a[href]");
+    const anchor = titleEl?.closest?.("a[href]") || (titleEl?.matches?.("a[href]") ? titleEl : null) || selfLink || item.querySelector("a[href]");
     const title = rule.title && !titleEl?.matches?.("a") ? titlePick.value : bestTitle(anchor, titlePick.value);
     const linkRaw = rule.link ? pick(item, rule.link, "href").value : anchor?.getAttribute("href") || "";
     const url = absolutize(linkRaw, base);
     if (!title || !url) continue;
-    const dateText = rule.date
-      ? pick(item, rule.date).value
-      : (findDateElement(item)?.textContent || "").replace(/\s+/g, " ").trim() || (item.textContent || "").match(DATE_PATTERN)?.[0] || "";
+    const dateEl = rule.date ? pick(item, rule.date) : null;
+    const dateText = dateEl
+      ? dateEl.el && !splitSel(rule.date!)[1]
+        ? spacedText(dateEl.el)
+        : dateEl.value
+      : (() => {
+          const found = findDateElement(item);
+          return found ? spacedText(found) : (item.textContent || "").match(DATE_PATTERN)?.[0] || "";
+        })();
     const publishedAt = parseLooseDate(dateText);
     const summary = rule.summary ? pick(item, rule.summary).value || null : null;
     const image = rule.image ? absolutize(pick(item, rule.image, "src").value, base) : null;

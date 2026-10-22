@@ -95,3 +95,14 @@ describe("httpGet retries", () => {
     }
   });
 });
+
+describe("split dates on school sites", () => {
+  const now = new Date(2026, 9, 22, 12).getTime();
+  const day = (t: number | null) => (t ? new Date(t).toLocaleDateString("en-CA") : null);
+  it("reads day, year.month and month.day, year widgets with their own year", () => {
+    expect(day(parseLooseDate("21 2026.10", now))).toBe("2026-10-21");
+    expect(day(parseLooseDate("09.30 2026", now))).toBe("2026-09-30");
+    expect(day(parseLooseDate("09.30 2024", now))).toBe("2024-09-30");
+    expect(day(parseLooseDate("2024 09.30", now))).toBe("2024-09-30");
+  });
+});

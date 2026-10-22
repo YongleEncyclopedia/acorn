@@ -62,3 +62,17 @@ describe("discovery and RSSHub", () => {
     expect(rsshubUrl("/zhihu/hot", "http://localhost:1200/", "k")).toBe("http://localhost:1200/zhihu/hot?key=k");
   });
 });
+
+describe("lists where each entry is one link", () => {
+  const html = `<html><body><nav><a href="/">首页</a></nav><div class="announcement-list">${Array.from({ length: 5 }, (_, i) =>
+    `<a href="/post/${i}" class="announcement-item"><div class="calendar-box"><div class="day">09.${10 + i}</div><div class="month">2025</div></div><div class="text-box"><div class="title">第${i + 1}个测试通知的完整标题</div><div class="desc"></div></div></a>`).join("")}</div></body></html>`;
+  it("finds the entries, their titles without the date, and the year from the date widget", () => {
+    const rule = suggestRule(html, "https://gs.example.edu/announcement")!;
+    expect(rule.item).toBe("div.announcement-list > a.announcement-item");
+    const items = scrapeList(html, "https://gs.example.edu/announcement", rule);
+    expect(items).toHaveLength(5);
+    expect(items[0].title).toBe("第1个测试通知的完整标题");
+    expect(items[0].url).toBe("https://gs.example.edu/post/0");
+    expect(new Date(items[0].publishedAt!).toLocaleDateString("en-CA")).toBe("2025-09-10");
+  });
+});

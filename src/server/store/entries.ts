@@ -115,7 +115,8 @@ export class EntryStore {
     const added: number[] = [];
     const grown: number[] = [];
     this.db.tx(() => {
-      for (const it of items) {
+      // Feeds list newest first; insert oldest first so that, among entries with the same time, newer ones sort first.
+      for (const it of [...items].reverse()) {
         const hash = sha1(`${it.title}\n${it.content || ""}\n${it.url || ""}`);
         const existing = this.db.get<{ id: number; content_hash: string | null; full_content: string | null; word_count: number }>(
           "select id, content_hash, full_content, word_count from entries where feed_id = ? and guid = ?",

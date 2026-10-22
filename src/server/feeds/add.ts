@@ -151,6 +151,11 @@ export async function addFeed(app: App, input: AddFeedInput): Promise<{ feed: Fe
     fetchInterval: input.fetchInterval ?? null,
   });
   const r = await refreshFeed(app, feed.id);
+  // A notice page keeps months of old items: only the last two weeks (or, without dates, nothing) start out unread.
+  if (kind === "html") {
+    const dated = !!app.db.get("select 1 from entries where feed_id = ? and published_at is not null limit 1", feed.id);
+    app.entries.markRead({ feedId: feed.id, before: dated ? Date.now() - 14 * 86_400_000 : Date.now() });
+  }
   app.events.emit({ type: "counts" });
   return { feed: app.feeds.get(feed.id)!, existed: false, added: r.added, error: r.error };
 }
