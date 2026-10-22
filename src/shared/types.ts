@@ -164,6 +164,44 @@ export interface ArchiveDetail extends ArchiveSummary {
   absolutePath: string;
 }
 
+/** Moving in from other tools: one uploaded export file, archived link by link in the background. */
+export type ImportItemStatus = "pending" | "done" | "rescued" | "gone" | "failed" | "skipped";
+
+export interface ImportBatch {
+  id: number;
+  source: string;
+  label: string;
+  options: { tags: string[]; wayback: boolean };
+  paused: boolean;
+  createdAt: number;
+  finishedAt: number | null;
+  total: number;
+  counts: Record<ImportItemStatus, number>;
+}
+
+export interface ImportItem {
+  id: number;
+  url: string;
+  title: string | null;
+  status: ImportItemStatus;
+  archiveId: number | null;
+  error: string | null;
+  savedAt: number | null;
+}
+
+export interface ImportPreview {
+  format: string;
+  label: string;
+  /** Links that will be archived. */
+  total: number;
+  /** Of those, already in the archive (their tags are merged instead). */
+  already: number;
+  /** Left out: duplicates, bookmarklets and other non-web addresses. */
+  skipped: number;
+  tags: { tag: string; count: number }[];
+  sample: { url: string; title: string | null; tags: string[]; savedAt: number | null }[];
+}
+
 export interface Counts {
   unread: number;
   today: number;
@@ -333,6 +371,7 @@ export type ServerEvent =
   | { type: "archive"; archiveId: number | null; url: string; status: "queued" | "done" | "error" | "verify"; title?: string; error?: string; spaceId?: number | null }
   | { type: "counts" }
   | { type: "translation"; id: string; done: number; total: number; error?: string | null }
+  | { type: "import"; id: number; finished: boolean }
   | { type: "hello"; at: number };
 
 /** A browser capture waiting for the user to pass a captcha / login in the handed-off ego-browser page. */

@@ -4,6 +4,7 @@
  * Run `acorn help` for the list of commands.
  */
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import { createClient, unproxify, AcornError } from "../client/client.ts";
 import { toMarkdown } from "../server/content/markdown.ts";
 import { loadConfig } from "../server/config.ts";
@@ -17,7 +18,7 @@ for (let i = 0; i < argv.length; i += 1) {
   if (a.startsWith("--")) {
     const [k, v] = a.slice(2).split("=", 2);
     if (v !== undefined) flags[k] = v;
-    else if (argv[i + 1] && !argv[i + 1].startsWith("--") && !["json", "unread", "browser", "gone", "send", "markdown", "all", "star", "unstar", "read"].includes(k)) flags[k] = argv[++i];
+    else if (argv[i + 1] && !argv[i + 1].startsWith("--") && !["json", "unread", "browser", "gone", "send", "markdown", "all", "star", "unstar", "read", "dry-run", "no-wayback"].includes(k)) flags[k] = argv[++i];
     else flags[k] = true;
   } else args.push(a);
 }
@@ -71,6 +72,8 @@ const HELP = `松果 Acorn 命令行
   archives [--gone] [--tag 标签] [--q 关键词] [--limit N]
   show-archive <存档ID>           输出存档全文 Markdown 与文件位置
   recheck <存档ID>                检查原文是否还在
+  import <文件> [--tag 标签] [--no-wayback] [--dry-run]   搬家：书签 / Pocket / Instapaper / Raindrop 导出文件里的链接全部入藏
+  imports                        搬家进度
   notes [--q 关键词]              批注
 
 其他
@@ -241,6 +244,36 @@ async function main(): Promise<void> {
       return out(r, () => {
         console.log(r.unchanged ? `已经藏过，内容没有变化：#${r.archiveId}` : `已入藏 #${r.archiveId} ${bold(r.title)}`);
         for (const w of r.warnings) console.log(dim(`  · ${w}`));
+      });
+    }
+    case "import": {
+      const file = args[0];
+      if (!file) throw new Error("需要导出文件：acorn import bookmarks.html");
+      const text = readFileSync(file, "utf8");
+      const name = path.basename(file);
+      const tags = flags.tag ? String(flags.tag).split(/[,，]/).filter(Boolean) : [];
+      if (flags["dry-run"]) {
+        const p = await api.previewImport(text, name);
+        return out(p, () => {
+          console.log(`${bold(p.label)}：${p.total} 个链接${p.already ? `，其中 ${p.already} 个已经在藏里` : ""}${p.skipped ? dim(`（略过 ${p.skipped} 个重复或非网页地址）`) : ""}`);
+          for (const s of p.sample) console.log(`  ${s.title || dim("（无标题）")} ${dim(s.url)}`);
+          if (p.tags.length) console.log(dim(`标签：${p.tags.slice(0, 10).map((t) => `#${t.tag}`).join(" ")}`));
+        });
+      }
+      const b = await api.startImport(text, name, { tags, wayback: !flags["no-wayback"] });
+      return out(b, () =>
+        console.log(`已开始搬家 #${b.id}：${b.total - b.counts.skipped} 个链接会在后台逐个入藏${b.counts.skipped ? `，${b.counts.skipped} 个已经在藏里` : ""}。查看进度：acorn imports`),
+      );
+    }
+    case "imports": {
+      const list = await api.imports();
+      return out(list, () => {
+        if (!list.length) return console.log(dim("还没有搬过家。acorn import <导出文件>"));
+        for (const b of list) {
+          const n = b.counts;
+          console.log(`#${b.id} ${bold(b.label)} ${dim(b.finishedAt ? "完成" : b.paused ? "暂停" : "进行中")} ${b.total - n.pending}/${b.total}`);
+          console.log(`   已藏 ${n.done} · 找回 ${n.rescued} · 本来就在 ${n.skipped} · 失效 ${n.gone ? red(n.gone) : 0} · 失败 ${n.failed ? red(n.failed) : 0}`);
+        }
       });
     }
     case "login-link": {

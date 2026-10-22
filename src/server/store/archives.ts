@@ -162,6 +162,11 @@ export class ArchiveStore {
     return this.db.get<ArchiveRow>(`${SUMMARY_SQL} where a.url = ?`, url);
   }
 
+  /** Just the id, for checking thousands of links quickly. */
+  idByUrl(url: string): number | undefined {
+    return this.db.get<{ id: number }>("select id from archives where url = ?", url)?.id;
+  }
+
   byEntry(entryId: number): ArchiveRow | undefined {
     return this.db.get<ArchiveRow>(`${SUMMARY_SQL} where a.entry_id = ? order by a.id limit 1`, entryId);
   }

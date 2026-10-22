@@ -1,6 +1,7 @@
 import { Cron } from "croner";
 import type { App } from "./app.ts";
 import { queueRefresh } from "./feeds/refresh.ts";
+import { importTick } from "./import/run.ts";
 import { queueCapture } from "./archive/capture.ts";
 import { recheckArchive } from "./archive/recheck.ts";
 import { syncWechatBridge } from "./feeds/wechat-bridge.ts";
@@ -17,7 +18,7 @@ export interface Scheduler {
 
 /**
  * Background loop:
- * - every 15 s: refresh feeds whose next_fetch_at has passed
+ * - every 15 s: refresh feeds whose next_fetch_at has passed; archive the next links of a move-in
  * - every 10 min: archive starred entries that were never archived; recheck old archives for deletion/changes;
  *   subscribe to accounts newly added in we-mp-rss
  * - daily: prune old untouched entries (when retention is enabled)
@@ -26,6 +27,7 @@ export interface Scheduler {
 export function startScheduler(app: App): Scheduler {
   const tick = () => {
     for (const f of app.feeds.due(Date.now(), 25)) queueRefresh(app, f.id);
+    importTick(app);
   };
   const maintenance = () => {
     const s = app.settings.all();

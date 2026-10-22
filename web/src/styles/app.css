@@ -1983,3 +1983,209 @@ input[type="range"].slider::-moz-range-thumb {
   line-height: 1.6;
   color: var(--ink-3);
 }
+
+/* moving in from other tools (搬家) */
+.movein {
+  display: grid;
+  gap: 16px;
+}
+.movein .lede {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+.dropzone {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 30px 20px;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: 14px;
+  background: var(--bg-sunken);
+  color: var(--ink-3);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.dropzone:hover,
+.dropzone.over {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg-sunken));
+}
+.dropzone b {
+  font-size: 15px;
+  color: var(--ink);
+}
+.dropzone span {
+  max-width: 460px;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.movein-preview {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--bg-sunken);
+}
+.movein-preview .head,
+.batch .head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.movein-preview .head b {
+  font-size: 15px;
+}
+.movein-preview .head .btn,
+.batch .head .spacer {
+  margin-left: auto;
+}
+.movein-preview .nums {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+.movein-preview .nums b {
+  font-size: 18px;
+  color: var(--ink);
+}
+.movein-preview .tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.movein-preview .sample {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.movein-preview .sample li {
+  display: flex;
+  gap: 10px;
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+}
+.movein-preview .sample li span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.movein-preview .actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.progress {
+  display: flex;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+.progress i {
+  display: block;
+  height: 100%;
+  transition: width 0.4s;
+}
+.progress .done,
+.legend .done i {
+  background: var(--ok);
+}
+.progress .rescued,
+.legend .rescued i {
+  background: var(--accent);
+}
+.progress .skipped,
+.legend .skipped i {
+  background: var(--ink-3);
+}
+.progress .gone,
+.legend .gone i {
+  background: var(--seal);
+}
+.progress .failed,
+.legend .failed i {
+  background: var(--warn);
+}
+.batches {
+  display: grid;
+  gap: 10px;
+}
+.batches h4 {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+.batch {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--bg-sunken);
+}
+.batch .head b {
+  font-size: 14px;
+}
+.batch .head .muted {
+  font-size: 12.5px;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.legend .chip i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.batch-items {
+  margin: 0;
+  padding: 0 0 0 2px;
+  list-style: none;
+  max-height: 240px;
+  overflow: auto;
+  font-size: 13px;
+}
+.batch-items li {
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.batch-items a {
+  color: var(--ink);
+}
+.movein-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-1), inset 0 0 0 1px var(--line);
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.movein-strip .progress {
+  flex: 1;
+  width: auto;
+}

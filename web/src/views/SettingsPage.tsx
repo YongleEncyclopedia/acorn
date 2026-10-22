@@ -702,6 +702,15 @@ export function SettingsPage() {
               </div>
               <div className="setting-row">
                 <div className="txt">
+                  <b>从别处搬家</b>
+                  <span>浏览器书签、Pocket、Instapaper、Raindrop、Readwise 的导出文件，里面的链接一次全部入藏；原文已经消失的，从 Internet Archive 找回。</span>
+                </div>
+                <Link href="/archive?movein=1" className="btn sm">
+                  开始搬家
+                </Link>
+              </div>
+              <div className="setting-row">
+                <div className="txt">
                   <b>运行日志</b>
                   <span>
                     后台任务：{stats.data?.jobs.running ?? 0} 个进行中，{stats.data?.jobs.queued ?? 0} 个排队

@@ -18,6 +18,9 @@ import type {
   FeedPreview,
   Highlight,
   HighlightColor,
+  ImportBatch,
+  ImportItem,
+  ImportPreview,
   Page,
   PendingVerification,
   SearchResults,
@@ -72,6 +75,21 @@ export function createClient(baseUrl = defaultBaseUrl(), token = defaultToken())
     }
     return data as T;
   }
+  /** Multipart upload of a text file plus fields (export files for a move-in). */
+  async function upload<T>(p: string, text: string, filename: string, fields: Record<string, string> = {}): Promise<T> {
+    const fd = new FormData();
+    fd.append("file", new File([text], filename, { type: "text/plain" }));
+    for (const [k, v] of Object.entries(fields)) fd.append(k, v);
+    let res: Response;
+    try {
+      res = await fetch(baseUrl + p, { method: "POST", headers: { authorization: `Bearer ${token}` }, body: fd });
+    } catch {
+      throw new AcornError(0, `连不上松果服务（${baseUrl}）。先在项目目录运行 npm start。`);
+    }
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) throw new AcornError(res.status, String(data.message || `HTTP ${res.status}`), data);
+    return data as T;
+  }
   const qs = (o: Record<string, unknown>) => {
     const u = new URLSearchParams();
     for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== null && v !== "" && v !== false) u.set(k, String(v));
@@ -110,6 +128,12 @@ export function createClient(baseUrl = defaultBaseUrl(), token = defaultToken())
     archive: (id: number) => call<ArchiveDetail>("GET", `/api/archives/${id}`),
     recheck: (id: number) => call<{ status: string; reason?: string }>("POST", `/api/archives/${id}/recheck`),
     waybackRescue: (id: number) => call<{ archiveId: number; title: string; warnings: string[] }>("POST", `/api/archives/${id}/wayback`),
+    previewImport: (text: string, filename: string) => upload<ImportPreview>("/api/imports/preview", text, filename),
+    startImport: (text: string, filename: string, opts: { tags?: string[]; wayback?: boolean } = {}) =>
+      upload<ImportBatch>("/api/imports", text, filename, { tags: (opts.tags || []).join(","), wayback: opts.wayback === false ? "0" : "1" }),
+    imports: () => call<ImportBatch[]>("GET", "/api/imports"),
+    importItems: (id: number, status: string) => call<ImportItem[]>("GET", `/api/imports/${id}/items${qs({ status })}`),
+    retryImport: (id: number) => call<{ changed: number }>("POST", `/api/imports/${id}/retry`, {}),
     patchArchive: (id: number, body: { title?: string; tags?: string[]; note?: string | null }) => call<ArchiveDetail>("PATCH", `/api/archives/${id}`, body),
     highlights: (q?: string, limit = 50) => call<Page<Highlight>>("GET", `/api/highlights${qs({ q, limit })}`),
     addHighlight: (body: { entryId?: number; archiveId?: number; quote: string; note?: string; color?: HighlightColor }) =>

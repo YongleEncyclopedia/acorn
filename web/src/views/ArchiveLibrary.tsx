@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { FileUp, Globe, Highlighter, Layers, Link2, Menu as MenuIcon, Search as SearchIcon } from "lucide-react";
+import { FileUp, Globe, Highlighter, Layers, Link2, Menu as MenuIcon, Search as SearchIcon, Truck } from "lucide-react";
 import { Layout } from "./Layout.tsx";
 import { api } from "../lib/api.ts";
 import { useBootstrap } from "../lib/queries.ts";
@@ -11,6 +11,7 @@ import { Seal } from "../components/Seal.tsx";
 import { Empty } from "../components/Empty.tsx";
 import { Dialog } from "../components/Dialog.tsx";
 import { Segmented } from "../components/Controls.tsx";
+import { ImportProgress, MoveIn } from "../components/MoveIn.tsx";
 import type { ArchiveSummary } from "../../../src/shared/types.ts";
 
 function Card({ a }: { a: ArchiveSummary }) {
@@ -179,7 +180,7 @@ export function ArchiveLibrary() {
   const tag = params.get("tag") || "";
   const [q, setQ] = useState(params.get("q") || "");
   const [debounced, setDebounced] = useState(q);
-  const [dialog, setDialog] = useState<"capture" | "import" | null>(params.get("capture") ? "capture" : null);
+  const [dialog, setDialog] = useState<"capture" | "import" | "movein" | null>(params.get("capture") ? "capture" : params.get("movein") ? "movein" : null);
   const boot = useBootstrap();
   useEffect(() => {
     const t = window.setTimeout(() => setDebounced(q), 250);
@@ -227,6 +228,10 @@ export function ArchiveLibrary() {
               <div className="lede">每一篇都完整保存在你的硬盘上：正文、图片、原始网页。原文被删了，这里还在。</div>
             </div>
             <div className="actions">
+              <button className="btn" onClick={() => setDialog("movein")} title="把浏览器书签、Pocket、Instapaper 等导出文件里的链接全部入藏">
+                <Truck size={16} />
+                搬家
+              </button>
               <button className="btn" onClick={() => setDialog("import")}>
                 <FileUp size={16} />
                 导入
@@ -255,6 +260,7 @@ export function ArchiveLibrary() {
               <div className="k">条批注</div>
             </div>
           </div>
+          <ImportProgress onOpen={() => setDialog("movein")} />
           <div className="toolbar-row">
             <div className="search-field">
               <SearchIcon size={16} />
@@ -295,7 +301,7 @@ export function ArchiveLibrary() {
             </div>
           ) : (
             <Empty art="vault" title={debounced || status || tag ? "没有符合条件的存档" : "还没有藏任何东西"}>
-              在文章上点「稍后读」或高亮一段话，松果会自动把它入藏；也可以直接粘贴网址入藏。
+              在文章上点「稍后读」或高亮一段话，松果会自动把它入藏；也可以直接粘贴网址入藏，或把浏览器书签、Pocket 的导出文件「搬家」进来。
             </Empty>
           )}
           <div ref={sentinel} />
@@ -303,6 +309,7 @@ export function ArchiveLibrary() {
       </main>
       {dialog === "capture" && <CaptureDialog onClose={() => setDialog(null)} />}
       {dialog === "import" && <ImportDialog onClose={() => setDialog(null)} />}
+      {dialog === "movein" && <MoveIn onClose={() => setDialog(null)} />}
     </Layout>
   );
 }

@@ -15,6 +15,9 @@ import type {
   FullTextMode,
   Highlight,
   HighlightColor,
+  ImportBatch,
+  ImportItem,
+  ImportPreview,
   Page,
   PendingVerification,
   SearchResults,
@@ -148,6 +151,15 @@ export const api = {
   deleteArchive: (id: number) => del<{ ok: boolean }>(`/api/archives/${id}`),
   importArchive: (fd: FormData) => request<{ archiveId: number; title: string }>("POST", "/api/archives/import", fd),
   waybackRescue: (id: number) => post<{ archiveId: number; title: string; warnings: string[] }>(`/api/archives/${id}/wayback`),
+
+  // moving in from other tools (搬家)
+  importPreview: (fd: FormData) => request<ImportPreview>("POST", "/api/imports/preview", fd),
+  startImport: (fd: FormData) => request<ImportBatch>("POST", "/api/imports", fd),
+  imports: () => get<ImportBatch[]>("/api/imports"),
+  importItems: (id: number, status: string) => get<ImportItem[]>(`/api/imports/${id}/items${qs({ status })}`),
+  retryImport: (id: number, statuses?: string[]) => post<{ changed: number }>(`/api/imports/${id}/retry`, { statuses }),
+  patchImport: (id: number, body: { paused?: boolean; tags?: string[]; wayback?: boolean }) => patch<ImportBatch>(`/api/imports/${id}`, body),
+  deleteImport: (id: number) => del<{ ok: boolean }>(`/api/imports/${id}`),
 
   highlights: (q?: string, cursor?: string | null) => get<Page<Highlight>>(`/api/highlights${qs({ q, cursor, limit: 60 })}`),
   createHighlight: (body: { entryId?: number | null; archiveId?: number | null; quote: string; prefix: string; suffix: string; note?: string | null; color?: HighlightColor }) =>

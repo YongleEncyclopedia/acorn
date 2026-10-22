@@ -10,6 +10,7 @@ import { ArchiveStore } from "./store/archives.ts";
 import { HighlightStore } from "./store/highlights.ts";
 import { TokenStore } from "./store/tokens.ts";
 import { TranslationStore } from "./store/translations.ts";
+import { ImportStore } from "./store/imports.ts";
 import { JobQueue } from "./jobs.ts";
 import type { Counts, ServerEvent } from "../shared/types.ts";
 
@@ -38,6 +39,7 @@ export interface App {
   highlights: HighlightStore;
   tokens: TokenStore;
   translations: TranslationStore;
+  imports: ImportStore;
   events: EventBus;
   /** Network-bound background work (refresh, full text, archive). */
   jobs: JobQueue;
@@ -55,6 +57,7 @@ export function createApp(cfg: Config): App {
     highlights: new HighlightStore(db),
     tokens: new TokenStore(db),
     translations: new TranslationStore(db),
+    imports: new ImportStore(db),
     events: new EventBus(),
     jobs: new JobQueue(5, 1500),
   };

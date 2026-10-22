@@ -13,6 +13,7 @@ export function useServerEvents(enabled: boolean): void {
     let retry = 1000;
     let closed = false;
     let countsTimer = 0;
+    let importTimer = 0;
     const refreshCounts = () => {
       window.clearTimeout(countsTimer);
       countsTimer = window.setTimeout(() => qc.invalidateQueries({ queryKey: keys.bootstrap }), 400);
@@ -39,6 +40,16 @@ export function useServerEvents(enabled: boolean): void {
             break;
           case "fulltext":
             qc.invalidateQueries({ queryKey: keys.entry(ev.entryId) });
+            break;
+          case "import":
+            // one event per link; the lists only need to catch up every so often
+            window.clearTimeout(importTimer);
+            importTimer = window.setTimeout(() => {
+              qc.invalidateQueries({ queryKey: ["imports"] });
+              qc.invalidateQueries({ queryKey: ["import-items"] });
+              qc.invalidateQueries({ queryKey: ["archives"] });
+            }, 600);
+            refreshCounts();
             break;
           case "archive":
             if (ev.status === "done") {
