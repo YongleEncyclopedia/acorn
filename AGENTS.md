@@ -26,7 +26,7 @@ src/server/
   config.ts            env → Config (ACORN_PORT, ACORN_DATA_DIR, RSSHUB_BASE, TELEGRAM_* …)
   app.ts               App context (db, stores, event bus, job queue), counts, CLI token
   db/                  Db wrapper + SQL migrations (add a new numbered file; never edit applied ones)
-  store/               one class per table group: feeds, entries, archives, highlights, settings, tokens
+  store/               one class per table group: feeds, entries, archives, highlights, settings, tokens, imports
   feeds/               source.ts (fetch any source kind), parse.ts (feedsmith → items), refresh.ts,
                        add.ts (preview/discovery/subscribe), html-source.ts (CSS rules + list auto-detection),
                        plugins.ts + plugin-api.ts, rsshub.ts, opml.ts, icons.ts,
@@ -34,7 +34,10 @@ src/server/
   content/             sanitize.ts (the only HTML allow-list), extract.ts (site rule → CMS containers → Readability),
                        rules/*.ts (per-site: wechat, zhihu, xiaohongshu, sspai), fulltext.ts, markdown.ts
   archive/             capture.ts (pipeline), assets.ts (images + attachments to disk), template.ts (offline page),
-                       browser.ts (ego-browser capture: HTML + MHTML + screenshot), mhtml.ts, recheck.ts
+                       browser.ts (ego-browser capture: HTML + MHTML + screenshot), mhtml.ts, recheck.ts,
+                       wayback.ts (Internet Archive: find the closest capture, unwrap it, archive it as a snapshot)
+  import/              parse.ts (bookmarks HTML, Pocket/Instapaper/Raindrop/Readwise CSV, JSON, text → links),
+                       run.ts (background worker over import_items: capture, rescue from the Wayback Machine, report)
   api/                 http.ts (Hono app, auth gate, static), routes/*.ts, greader.ts (Google Reader API),
                        outputs.ts (re-publish as RSS), auth.ts, content.ts (image proxy URL rewriting)
   translate/           engine.ts (Ollama / OpenAI-compatible / Anthropic, numbered-segment prompt), index.ts (job queue + cache),
@@ -65,6 +68,8 @@ tests/                 vitest; fixtures are real pages saved from the web
   after they pass it, `acorn resume <space id>` (or the banner in the web app) takes the page back and archives it.
   WeChat issues verification per article (a `poc_token` on the URL), and a direct connection does not avoid it.
   Never try to solve captchas.
+- **An export file from another tool does not parse** → `src/server/import/parse.ts` sniffs the format from the
+  content (Netscape bookmarks, CSV header names, JSON keys); add the alias there and a case in `tests/import.test.ts`.
 - **WeChat Official Accounts** → they come from we-mp-rss (`services/we-mp-rss/`, Docker on 127.0.0.1:8001; see its README).
   Settings `wechatBridge.url` makes Acorn subscribe to every account listed there (every 10 min, `acorn wechat sync`).
   The WeChat rule has `preferFeedCopy`: Acorn never fetches mp.weixin.qq.com pages for those entries; archives use
@@ -87,7 +92,8 @@ tests/                 vitest; fixtures are real pages saved from the web
 
 Session cookie (web) or `Authorization: Bearer <token>` (CLI/MCP/scripts). JSON under `/api/*`:
 `bootstrap, counts, feeds (+/preview, /:id/refresh, /:id/logs), folders, entries (list/detail/PATCH/fulltext/mark),
-archives (list/detail/POST capture/import/:id/snapshot/:id/recheck/PATCH/DELETE), highlights, search, settings,
+archives (list/detail/POST capture/import/:id/snapshot/:id/recheck/:id/wayback/PATCH/DELETE),
+imports (list/POST file/preview/:id/items/:id/retry/PATCH/DELETE — moving in from other tools), highlights, search, settings,
 tokens, stats, logs, opml, digest, events (SSE), img (image proxy), translate (+/:id, /models, /test), summary, wechat-bridge (+/sync),
 addresses, login-link`. One-time sign-in: `GET /login/<token>` (public; the token comes from `POST /api/login-link`). Archive files: `/files/archive/<path>`.
 Google Reader API: `/accounts/ClientLogin`, `/reader/api/0/*` (also under `/api/greader`). RSS out: `/out/*.xml?key=`.
