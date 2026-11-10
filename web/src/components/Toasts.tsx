@@ -25,14 +25,3 @@ export function Toasts() {
     document.body,
   );
 }
-
-export function Lightbox() {
-  const src = ui.use((s) => s.lightbox);
-  if (!src) return null;
-  return createPortal(
-    <div className="lightbox" onClick={() => ui.set({ lightbox: null })} role="dialog" aria-label="查看图片">
-      <img src={src} alt="" />
-    </div>,
-    document.body,
-  );
-}

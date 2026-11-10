@@ -1,42 +1,33 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckCheck, History, ListFilter, Menu as MenuIcon, MoreHorizontal, Pause, Pencil, RefreshCw } from "lucide-react";
+import { ArrowDownToLine, ArrowUpToLine, Bookmark, CheckCheck, CircleCheck, CircleDot, Copy, ExternalLink, History, Menu as MenuIcon, MoreHorizontal, Pause, Pencil, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { Layout, streamPath, VIEW_TITLES, type Stream } from "./Layout.tsx";
-import { EntryList } from "./EntryList.tsx";
+import { EntryList, type EntryAction } from "./EntryList.tsx";
 import { EntryReader } from "./EntryReader.tsx";
+import { ReaderHome } from "./ReaderHome.tsx";
 import { Empty } from "../components/Empty.tsx";
-import { Popover, Menu, useAnchor } from "../components/Popover.tsx";
+import { Popover, Menu, useAnchor, type MenuItem } from "../components/Popover.tsx";
+import { Segmented, Switch } from "../components/Controls.tsx";
 import { FeedIcon } from "../components/FeedIcon.tsx";
+import { Seal } from "../components/Seal.tsx";
 import { useBootstrap, useEntries, useEntryActions, keys } from "../lib/queries.ts";
 import { api, type EntryQuery } from "../lib/api.ts";
 import { relTime, todayHeading, hostname, greeting } from "../lib/format.ts";
 import { toast, toastError, ui } from "../lib/store.ts";
 import { useHotkeys } from "../lib/hotkeys.ts";
+import { useLocal, useLocalFlag } from "../lib/local.ts";
+import { useDocumentTitle, useFocusMode } from "../lib/shell.ts";
 import { useMobile } from "../lib/useMedia.ts";
 import type { EntrySummary, Feed } from "../../../src/shared/types.ts";
 
-function useUnreadFilter(stream: Stream): [boolean, (v: boolean) => void] {
-  const key = `acorn.unread.${stream.kind}`;
-  const [v, setV] = useState(() => {
-    try {
-      return localStorage.getItem(key) === "1";
-    } catch {
-      return false;
-    }
-  });
-  return [
-    v,
-    (x) => {
-      setV(x);
-      try {
-        localStorage.setItem(key, x ? "1" : "0");
-      } catch {
-        /* ignore */
-      }
-    },
-  ];
-}
+/**
+ * Where the list was scrolled to when an article was opened from it. A phone shows either the list or the
+ * article and both scroll the page, so coming back has to put the list where it was. One trip only: it is
+ * used up on the way back and dropped as soon as any other list is shown.
+ */
+let leftListAt: { path: string; y: number } | null = null;
+
 
 export function StreamPage({ stream, entryId }: { stream: Stream; entryId: number | null }) {
   const [, navigate] = useLocation();
@@ -44,16 +35,27 @@ export function StreamPage({ stream, entryId }: { stream: Stream; entryId: numbe
   const mobile = useMobile();
   const boot = useBootstrap();
   const fresh = ui.use((s) => s.freshEntries);
-  const [unreadOnly, setUnreadOnly] = useUnreadFilter(stream);
+  // How the list is shown is remembered on this device: the filter and order per kind of list, the density overall.
+  const [unreadPref, setUnreadOnly] = useLocalFlag(`acorn.unread.${stream.kind}`);
+  const [order, setOrder] = useLocal<"new" | "old">(`acorn.order.${stream.kind}`, "new", ["new", "old"]);
+  const [density, setDensity] = useLocal<"comfortable" | "compact">("acorn.density", "comfortable", ["comfortable", "compact"]);
+  const [focus] = useFocusMode();
+  const viewMenu = useAnchor();
   const markMenu = useAnchor();
   const moreMenu = useAnchor();
+  // `at` is kept as one object: the popover re-measures whenever its anchor changes identity.
+  const [entryMenu, setEntryMenu] = useState<{ entry: EntrySummary; at: { x: number; y: number } } | null>(null);
   const { setRead, setStar } = useEntryActions();
+  // 未读 is already a filter; 稍后读, 在读 and 已入藏 are lists you keep regardless of read state.
+  const canFilter = stream.kind !== "view" || stream.view === "today" || stream.view === "all";
+  const unreadOnly = canFilter && unreadPref;
 
   const query: EntryQuery = useMemo(() => {
-    if (stream.kind === "view") return { view: stream.view };
-    if (stream.kind === "feed") return { feed: stream.id, unread: unreadOnly || undefined };
-    return { folder: stream.id, unread: unreadOnly || undefined };
-  }, [stream, unreadOnly]);
+    const how = { unread: unreadOnly || undefined, order: order === "old" ? ("old" as const) : undefined };
+    if (stream.kind === "view") return { view: stream.view, ...how };
+    if (stream.kind === "feed") return { feed: stream.id, ...how };
+    return { folder: stream.id, ...how };
+  }, [stream, unreadOnly, order]);
   const list = useEntries(query);
   const entries = useMemo(() => list.data?.pages.flatMap((p) => p.items) ?? [], [list.data]);
   // The "new entries" pill only makes sense for arrivals after the list was loaded.
@@ -82,30 +84,56 @@ export function StreamPage({ stream, entryId }: { stream: Stream; entryId: numbe
 
   const idx = entryId ? entries.findIndex((e) => e.id === entryId) : -1;
   const next = idx >= 0 ? entries[idx + 1] || null : null;
-  const prev = idx > 0 ? entries[idx - 1] : null;
+  useDocumentTitle(entryId ? undefined : title);
 
-  const open = useCallback((e: EntrySummary) => navigate(streamPath(stream, e.id)), [navigate, stream]);
+  // Back from an article on a phone: the list returns to where it was left (it used to jump to the top).
+  const path = streamPath(stream);
+  const here = useRef({ mobile, entryId, path });
+  here.current = { mobile, entryId, path };
+  useLayoutEffect(() => {
+    if (!mobile || entryId) return;
+    const y = leftListAt?.path === path ? leftListAt.y : 0;
+    leftListAt = null;
+    window.scrollTo(0, y);
+  }, [mobile, entryId, path]);
+  useEffect(() => () => void (leftListAt = null), []);
+
+  const open = useCallback(
+    (e: EntrySummary) => {
+      const at = here.current;
+      if (at.mobile && !at.entryId) leftListAt = { path: at.path, y: window.scrollY };
+      navigate(streamPath(stream, e.id));
+    },
+    [navigate, stream],
+  );
+
+  // Reading on from article to article (Space, the 下一篇 card, a phone) reaches the end of what is loaded
+  // without the list ever scrolling, or even being on screen: fetch the next page as the end comes near.
+  const nearEnd = idx >= 0 && idx >= entries.length - 4;
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = list;
+  useEffect(() => {
+    if (nearEnd && hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [nearEnd, hasNextPage, isFetchingNextPage, fetchNextPage]);
   const go = (delta: number) => {
     const target = idx < 0 ? entries[0] : entries[idx + delta];
     if (target) open(target);
-    if (delta > 0 && idx >= entries.length - 4 && list.hasNextPage) list.fetchNextPage();
   };
   const back = () => navigate(streamPath(stream));
 
-  const onSwipe = useCallback(
-    (e: EntrySummary, dir: "left" | "right") => {
-      if (dir === "right") setRead.mutate({ entry: e, read: !e.readAt });
+  const onAction = useCallback(
+    (e: EntrySummary, action: EntryAction) => {
+      if (action === "read") setRead.mutate({ entry: e, read: !e.readAt });
       else setStar.mutate({ entry: e, starred: !e.starredAt });
     },
     [setRead, setStar],
   );
+  const onMenu = useCallback((entry: EntrySummary, at: { x: number; y: number }) => setEntryMenu({ entry, at }), []);
 
-  /** Mark everything here as read, or only what was published more than `days` ago. */
-  const markAll = async (days = 0) => {
+  /** Which entries "everything in this list" means to the server. */
+  const scope = stream.kind === "feed" ? { feedId: stream.id } : stream.kind === "folder" ? { folderId: stream.id } : { view: stream.view === "today" ? ("today" as const) : undefined };
+  const markRange = async (range: { before?: number; upTo?: number; newerThan?: number }) => {
     try {
-      const body =
-        stream.kind === "feed" ? { feedId: stream.id } : stream.kind === "folder" ? { folderId: stream.id } : { view: stream.view === "today" ? ("today" as const) : undefined };
-      const r = await api.mark({ ...body, before: Date.now() - days * 86_400_000 });
+      const r = await api.mark({ ...scope, ...range });
       toast(r.changed ? `已将 ${r.changed} 篇标为已读` : "没有未读文章");
       qc.invalidateQueries({ queryKey: ["entries"] });
       qc.invalidateQueries({ queryKey: keys.bootstrap });
@@ -113,6 +141,8 @@ export function StreamPage({ stream, entryId }: { stream: Stream; entryId: numbe
       toastError(e);
     }
   };
+  /** Mark everything here as read, or only what was published more than `days` ago. */
+  const markAll = (days = 0) => markRange({ before: Date.now() - days * 86_400_000 });
   const refresh = async () => {
     if (fresh) ui.set({ freshEntries: 0 });
     if (stream.kind === "feed") {
@@ -130,8 +160,9 @@ export function StreamPage({ stream, entryId }: { stream: Stream; entryId: numbe
   useHotkeys({
     j: () => go(1),
     k: () => go(-1),
-    ArrowDown: () => !entryId && go(1),
-    ArrowUp: () => !entryId && go(-1),
+    // The arrows walk the list only while no article is open; once one is, they are left alone so that they
+    // scroll it (registering them at all would swallow the key).
+    ...(entryId ? {} : { ArrowDown: () => go(1), ArrowUp: () => go(-1) }),
     r: refresh,
     "shift+a": () => markAll(),
     "g u": () => navigate("/s/unread"),
@@ -140,6 +171,30 @@ export function StreamPage({ stream, entryId }: { stream: Stream; entryId: numbe
     "g a": () => navigate("/archive"),
     "g n": () => navigate("/notes"),
   });
+
+  // 稍后读, 在读 and 已入藏 are ordered by when you did that, not by when the article was published.
+  const byTime = stream.kind !== "view" || !["starred", "progress", "archived"].includes(stream.view);
+
+  /** The right-click menu of a list entry. */
+  const entryItems = (e: EntrySummary): (MenuItem | "sep")[] => [
+    { label: e.readAt ? "标为未读" : "标为已读", icon: e.readAt ? <CircleDot size={15} /> : <CircleCheck size={15} />, onSelect: () => onAction(e, "read") },
+    { label: e.starredAt ? "移出稍后读" : "稍后读", icon: <Bookmark size={15} />, onSelect: () => onAction(e, "star") },
+    ...(!e.archiveId && e.url ? [{ label: "入藏", icon: <Seal size="xs" />, onSelect: () => api.capture({ entryId: e.id }).then(() => toast("正在入藏…"), toastError) }] : []),
+    ...(byTime
+      ? [
+          "sep" as const,
+          { label: "比这篇新的都标为已读", icon: <ArrowUpToLine size={15} />, onSelect: () => markRange({ newerThan: e.id }) },
+          { label: "这篇和更早的都标为已读", icon: <ArrowDownToLine size={15} />, onSelect: () => markRange({ upTo: e.id }) },
+        ]
+      : []),
+    ...(e.url
+      ? [
+          "sep" as const,
+          { label: "打开原文", icon: <ExternalLink size={15} />, onSelect: () => void window.open(e.url!, "_blank", "noopener,noreferrer") },
+          { label: "复制链接", icon: <Copy size={15} />, onSelect: () => void navigator.clipboard?.writeText(e.url!).then(() => toast("已复制链接")) },
+        ]
+      : []),
+  ];
 
   const listPane = (
     <section className="pane list-pane">
@@ -152,11 +207,9 @@ export function StreamPage({ stream, entryId }: { stream: Stream; entryId: numbe
           <h1>{title}</h1>
           {subtitle && <div className="sub">{subtitle}</div>}
         </div>
-        {stream.kind !== "view" && (
-          <button className="icon-btn" aria-pressed={unreadOnly} onClick={() => setUnreadOnly(!unreadOnly)} title={unreadOnly ? "显示全部" : "只看未读"} aria-label="只看未读">
-            <ListFilter size={18} />
-          </button>
-        )}
+        <button ref={viewMenu.ref} className="icon-btn" aria-pressed={unreadOnly || order === "old"} onClick={viewMenu.toggle} title="显示方式" aria-label="显示方式">
+          <SlidersHorizontal size={17} />
+        </button>
         <button className="icon-btn" onClick={refresh} title="刷新（R）" aria-label="刷新">
           <RefreshCw size={17} className={list.isFetching && !list.isFetchingNextPage ? "spin-slow" : ""} />
         </button>
@@ -195,8 +248,10 @@ export function StreamPage({ stream, entryId }: { stream: Stream; entryId: numbe
             loadingMore={list.isFetchingNextPage}
             onLoadMore={() => list.fetchNextPage()}
             onOpen={open}
-            onSwipe={onSwipe}
-            groupByDay={stream.kind !== "view" || !["starred", "progress", "archived"].includes(stream.view)}
+            onAction={onAction}
+            onMenu={onMenu}
+            compact={density === "compact"}
+            groupByDay={byTime}
             titleLang={boot.data?.settings.translate.titles ? boot.data.settings.translate.targetLang : null}
           />
         ) : !boot.data?.feeds.length ? (
@@ -217,6 +272,45 @@ export function StreamPage({ stream, entryId }: { stream: Stream; entryId: numbe
           </Empty>
         )}
       </div>
+      {viewMenu.open && (
+        <Popover anchor={viewMenu.el} onClose={viewMenu.close} label="显示方式">
+          <div className="view-opts">
+            {canFilter && (
+              <label className="row">
+                <span>只看未读</span>
+                <Switch checked={unreadOnly} onChange={setUnreadOnly} label="只看未读" />
+              </label>
+            )}
+            <div className="row">
+              <span>排序</span>
+              <Segmented
+                value={order}
+                onChange={setOrder}
+                options={[
+                  { value: "new", label: "最新在前" },
+                  { value: "old", label: "最早在前" },
+                ]}
+              />
+            </div>
+            <div className="row">
+              <span>密度</span>
+              <Segmented
+                value={density}
+                onChange={setDensity}
+                options={[
+                  { value: "comfortable", label: "舒适" },
+                  { value: "compact", label: "紧凑" },
+                ]}
+              />
+            </div>
+          </div>
+        </Popover>
+      )}
+      {entryMenu && (
+        <Popover anchor={entryMenu.at} onClose={() => setEntryMenu(null)} placement="bottom-start">
+          <Menu items={entryItems(entryMenu.entry)} onClose={() => setEntryMenu(null)} />
+        </Popover>
+      )}
       {markMenu.open && (
         <Popover anchor={markMenu.el} onClose={markMenu.close}>
           <div className="menu-note">把「{title}」里的文章标为已读</div>
@@ -252,22 +346,12 @@ export function StreamPage({ stream, entryId }: { stream: Stream; entryId: numbe
 
   const readerPane = (
     <main className="pane reader-pane">
-      {entryId ? (
-        <EntryReader id={entryId} next={next} onBack={back} onNext={() => next && open(next)} />
-      ) : (
-        <Empty art="acorn" title="选一篇文章读读">
-          <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
-            <kbd>J</kbd>
-            <kbd>K</kbd> 上下篇 <kbd>S</kbd> 稍后读 <kbd>A</kbd> 入藏 <kbd>T</kbd> 翻译 <kbd>I</kbd> 要点 <kbd>⌘K</kbd> 搜索
-          </span>
-        </Empty>
-      )}
+      {entryId ? <EntryReader id={entryId} next={next} onBack={back} onNext={() => next && open(next)} /> : <ReaderHome first={entries[0] || null} onOpen={open} />}
     </main>
   );
-  void prev;
 
   return (
-    <Layout mode="three" view={entryId ? "reader" : "list"}>
+    <Layout mode="three" view={entryId ? "reader" : "list"} focus={focus}>
       {(!mobile || !entryId) && listPane}
       {(!mobile || entryId) && readerPane}
     </Layout>

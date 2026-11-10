@@ -7,6 +7,7 @@ import { api } from "../lib/api.ts";
 import { useBootstrap } from "../lib/queries.ts";
 import { bytes, relTime, shortDate } from "../lib/format.ts";
 import { toast, toastError, ui } from "../lib/store.ts";
+import { useDocumentTitle } from "../lib/shell.ts";
 import { Seal } from "../components/Seal.tsx";
 import { Empty } from "../components/Empty.tsx";
 import { Dialog } from "../components/Dialog.tsx";
@@ -182,6 +183,7 @@ export function ArchiveLibrary() {
   const [debounced, setDebounced] = useState(q);
   const [dialog, setDialog] = useState<"capture" | "import" | "movein" | null>(params.get("capture") ? "capture" : params.get("movein") ? "movein" : null);
   const boot = useBootstrap();
+  useDocumentTitle("藏");
   useEffect(() => {
     const t = window.setTimeout(() => setDebounced(q), 250);
     return () => window.clearTimeout(t);
@@ -214,8 +216,8 @@ export function ArchiveLibrary() {
 
   return (
     <Layout mode="wide">
-      <main className="pane wide-pane scroll" style={{ overflowY: "auto" }}>
-        <header className="pane-head" style={{ background: "transparent", backdropFilter: "none" }}>
+      <main className="pane wide-pane scroll">
+        <header className="pane-head wide-head">
           <button className="icon-btn menu-btn" onClick={() => ui.set({ drawer: true })} aria-label="打开导航">
             <MenuIcon size={20} />
           </button>

@@ -38,11 +38,55 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.reader-bar .src .left {
+  flex: none;
+  font-weight: 450;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+/*
+ * The bar holds eleven controls on a wide screen. In a narrow pane (a tablet, a small window) what explains
+ * gives way to what acts: first the time left, then the group rules and the source's name.
+ * (The container is the bar itself: the pane has fixed-position children that containment would capture.)
+ */
+.reader-bar {
+  container: reader-bar / inline-size;
+}
+.reader-bar .src {
+  overflow: hidden;
+}
+@media (min-width: 761px) {
+  @container reader-bar (max-width: 560px) {
+    .reader-bar .src .left {
+      display: none;
+    }
+  }
+  @container reader-bar (max-width: 480px) {
+    .reader-bar .src,
+    .reader-bar .bar-sep {
+      display: none;
+    }
+  }
+}
 .reader-bar .spacer {
   flex: 1;
 }
+/* groups of actions: keep · transform · annotate · leave */
+.reader-bar .bar-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 7px;
+  background: var(--line-strong);
+  flex: none;
+}
 .reader-bar .back {
   display: none;
+}
+/* 专注阅读: the list is out of sight, so the way back to it is offered here */
+@media (min-width: 761px) {
+  .shell[data-focus="true"] .reader-bar .back {
+    display: inline-grid;
+  }
 }
 @media (max-width: 760px) {
   .reader-bar .back {
@@ -65,6 +109,41 @@
 .reader-scroll {
   flex: 1;
   min-height: 0;
+  overflow-x: hidden;
+}
+/* it holds focus so that the keyboard scrolls it; the whole pane does not need a ring to say so */
+.reader-scroll:focus {
+  outline: none;
+}
+/*
+ * 专注阅读 on / off: the side panes appear and disappear at once, and the text, whose pane just moved by half
+ * their width, glides from where it was to where it now belongs.
+ */
+:root {
+  --focus-shift: calc((var(--sidebar-w) + var(--list-w)) / 2);
+}
+@media (max-width: 980px) {
+  :root {
+    --focus-shift: calc(var(--list-w) / 2);
+  }
+}
+@media (min-width: 761px) {
+  :root[data-focus-move="in"] .reader-pane .article-wrap {
+    animation: focus-in var(--dur-3) var(--ease);
+  }
+  :root[data-focus-move="out"] .reader-pane .article-wrap {
+    animation: focus-out var(--dur-3) var(--ease);
+  }
+}
+@keyframes focus-in {
+  from {
+    transform: translateX(var(--focus-shift));
+  }
+}
+@keyframes focus-out {
+  from {
+    transform: translateX(calc(var(--focus-shift) * -1));
+  }
 }
 @media (max-width: 760px) {
   .reader-scroll {
@@ -210,12 +289,30 @@
 .article figure {
   margin: 0 0 1.15em;
 }
+.article p {
+  /* no lone character (or word) left on a paragraph's last line */
+  text-wrap: pretty;
+}
+/*
+ * Justification and the two-character indent are Chinese typesetting. A justified Chinese line can stretch
+ * between any two characters; a Western one only at its word spaces, which on a phone tears it into rivers —
+ * so Latin-script paragraphs (marked by markScripts) stay ragged-right, and so does a Latin article's leading:
+ * the same line height that suits full-width characters looks loose around lowercase letters.
+ */
 .article[data-justify="true"] p {
   text-align: justify;
-  text-justify: inter-character;
+}
+.article[data-justify="true"] p[data-latin] {
+  text-align: start;
 }
 .article[data-indent="true"] p {
   text-indent: 2em;
+}
+.article[data-indent="true"] p[data-latin] {
+  text-indent: 0;
+}
+.article[data-script="latin"]:not([data-tr]) {
+  line-height: max(1.45, calc(var(--read-lh) - 0.2));
 }
 .article[data-indent="true"] li p,
 .article[data-indent="true"] blockquote p,
@@ -233,6 +330,9 @@
   font-weight: 700;
   letter-spacing: -0.005em;
   text-wrap: balance;
+}
+.article :is(h1, h2, h3, h4) {
+  scroll-margin-top: calc(var(--topbar-h) + var(--safe-t) + 18px);
 }
 .article h2 {
   font-size: 1.32em;
@@ -463,6 +563,15 @@
 .next-card:hover {
   background: var(--bg-hover);
 }
+.next-card .go {
+  flex: none;
+  color: var(--ink-4);
+  transition: transform var(--dur-2) var(--ease), color var(--dur-1);
+}
+.next-card:hover .go {
+  color: var(--accent);
+  transform: translateX(3px);
+}
 .next-card .k {
   font-size: 11.5px;
   color: var(--ink-3);
@@ -683,24 +792,120 @@
   box-shadow: 0 0 0 2px var(--bg-elev), 0 0 0 4px var(--accent);
 }
 
-/* image lightbox */
+/* image viewer */
 .lightbox {
   position: fixed;
   inset: 0;
   z-index: 95;
-  background: rgba(10, 8, 6, 0.92);
+  /* opaque: text of the page behind showing through would sit under the picture like a second caption */
+  background: #0e0c0a;
+  color: #efe9dd;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  animation: fade-in var(--dur-2) var(--ease);
+  outline: none;
+  padding-top: var(--safe-t);
+  padding-bottom: var(--safe-b);
+}
+.lightbox-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 52px;
+  padding: 0 10px 0 18px;
+}
+.lightbox-bar .count {
+  font-size: 13px;
+  color: rgba(239, 233, 221, 0.7);
+  min-width: 0;
+}
+.lightbox-bar .grow {
+  flex: 1;
+}
+.lightbox .icon-btn {
+  color: rgba(239, 233, 221, 0.82);
+}
+.lightbox .icon-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.lightbox-stage {
+  min-height: 0;
   display: grid;
   place-items: center;
-  animation: fade-in var(--dur-2) var(--ease);
+  padding: 4px 20px 12px;
+  overflow: hidden;
   cursor: zoom-out;
-  padding: 20px;
 }
-.lightbox img {
+.lightbox-stage img {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: 4px;
   animation: rise var(--dur-3) var(--ease);
+  cursor: default;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.lightbox-stage img[data-zoomable="true"] {
+  cursor: zoom-in;
+}
+/* zoomed: the picture keeps its own size and the stage scrolls */
+.lightbox-stage:not([data-mode="fit"]) {
+  overflow: auto;
+  place-items: start center;
+  overscroll-behavior: contain;
+}
+.lightbox-stage:not([data-mode="fit"]) img {
+  max-width: none;
+  max-height: none;
+  height: auto;
+  cursor: zoom-out;
+}
+.lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: rgba(239, 233, 221, 0.78);
+  background: rgba(20, 17, 13, 0.42);
+  transition: background var(--dur-1), color var(--dur-1), opacity var(--dur-2);
+}
+.lightbox-nav:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+.lightbox-nav.prev {
+  left: 12px;
+}
+.lightbox-nav.next {
+  right: 12px;
+}
+.lightbox-caption {
+  justify-self: center;
+  max-width: min(720px, calc(100vw - 40px));
+  padding: 2px 0 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+  color: rgba(239, 233, 221, 0.78);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (max-width: 760px) {
+  .lightbox-stage {
+    padding: 0 0 8px;
+  }
+  /* a swipe moves between pictures on a phone */
+  .lightbox-nav {
+    display: none;
+  }
 }
 
 /* snapshot timeline */
@@ -969,4 +1174,129 @@
 }
 .tldr-wait a {
   color: var(--accent-ink);
+}
+
+/* ---- outline (table of contents) ---- */
+.outline {
+  position: absolute;
+  z-index: 9;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+/*
+ * The marks stay inside the page margin (the article's 28px side padding, 12px from the pane's edge), so they
+ * never touch the text however narrow the pane is; only the invisible part of the target reaches over it.
+ */
+.outline-ticks {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-height: 72vh;
+  overflow: hidden;
+  padding: 14px 0 14px 18px;
+  border-radius: 8px;
+}
+.outline-ticks i {
+  display: block;
+  flex: none;
+  height: 2px;
+  width: 11px;
+  border-radius: 1px;
+  background: var(--ink-4);
+  transition: width var(--dur-2) var(--ease), background var(--dur-2);
+}
+.outline-ticks i[data-depth="1"] {
+  width: 7px;
+}
+.outline-ticks i[data-depth="2"] {
+  width: 5px;
+}
+.outline-ticks i[data-active="true"] {
+  width: 16px;
+  background: var(--accent);
+}
+.outline[data-open="true"] .outline-ticks i:not([data-active="true"]) {
+  background: var(--line-strong);
+}
+.outline-list {
+  position: absolute;
+  right: calc(100% - 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(300px, 38vw);
+  max-height: min(70vh, 560px);
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--bg-elev);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  animation: outline-in var(--dur-2) var(--ease);
+}
+@keyframes outline-in {
+  from {
+    opacity: 0;
+    transform: translate(6px, -50%);
+  }
+}
+.outline-list button {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 7px;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.outline-list button[data-depth="1"] {
+  padding-left: 22px;
+  color: var(--ink-3);
+}
+.outline-list button[data-depth="2"] {
+  padding-left: 34px;
+  color: var(--ink-3);
+}
+.outline-list button:hover,
+.outline-list button:focus-visible {
+  background: var(--bg-hover);
+  color: var(--ink);
+  outline: none;
+}
+.outline-list button[aria-current="location"] {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+/* the same list as a menu, on phones */
+.outline-menu {
+  max-height: min(64dvh, 520px);
+  overflow-y: auto;
+  width: min(320px, calc(100vw - 24px));
+}
+.outline-menu .menu-item .text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.outline[data-side="left"] {
+  right: auto;
+  left: 12px;
+  justify-content: flex-start;
+}
+.outline[data-side="left"] .outline-ticks {
+  align-items: flex-start;
+  padding: 14px 18px 14px 0;
+}
+.outline[data-side="left"] .outline-list {
+  right: auto;
+  left: calc(100% - 8px);
 }

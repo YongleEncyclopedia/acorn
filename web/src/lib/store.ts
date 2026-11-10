@@ -29,13 +29,21 @@ export interface Toast {
   action?: { label: string; run: () => void };
 }
 
+export interface LightboxItem {
+  src: string;
+  caption: string;
+}
+
 export const ui = createStore({
   toasts: [] as Toast[],
   palette: false,
   drawer: false,
   notesPanel: false,
+  /** The keyboard shortcut sheet (?). */
+  shortcuts: false,
   addSource: null as null | { input?: string },
-  lightbox: null as null | string,
+  /** The pictures of the article being read, and which one is showing. */
+  lightbox: null as null | { items: LightboxItem[]; index: number },
   freshEntries: 0,
 });
 

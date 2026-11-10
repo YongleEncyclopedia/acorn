@@ -1,4 +1,11 @@
-/* Acorn design tokens. Themes: paper (default light), sepia, night, ink (true black). */
+/*
+ * Acorn design tokens. Themes: paper (default light), sepia, night, ink (true black).
+ *
+ * The four inks are steps of emphasis: --ink for what is read, --ink-2 for what supports it, --ink-3 for what
+ * can be skimmed (times, excerpts, labels) and --ink-4 for what is only decoration (rules, placeholders, marks).
+ * --ink-3 is still text, so in every theme it keeps a contrast of at least 4.5:1 against the page and card
+ * backgrounds (WCAG AA); --ink-4 does not, and should never carry something a reader needs.
+ */
 :root {
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
   --font-serif: "Literata Variable", "Noto Serif SC", "Songti SC", "STSong", "Source Han Serif SC", serif;
@@ -49,8 +56,8 @@
   --bg-overlay: rgba(32, 26, 18, 0.32);
   --ink: #1f1b16;
   --ink-2: #57514a;
-  --ink-3: #898274;
-  --ink-4: #b5ad9f;
+  --ink-3: #6f685b;
+  --ink-4: #a39b8c;
   --line: rgba(70, 50, 25, 0.1);
   --line-strong: rgba(70, 50, 25, 0.18);
   --accent: #8a5a2b;
@@ -82,8 +89,8 @@
   --bg-overlay: rgba(40, 28, 12, 0.34);
   --ink: #3a2e20;
   --ink-2: #66553f;
-  --ink-3: #94826a;
-  --ink-4: #bba98d;
+  --ink-3: #70604a;
+  --ink-4: #a8967a;
   --line: rgba(80, 55, 20, 0.12);
   --line-strong: rgba(80, 55, 20, 0.2);
   --accent: #8a5524;
@@ -108,8 +115,8 @@
   --bg-overlay: rgba(0, 0, 0, 0.5);
   --ink: #ebe5d8;
   --ink-2: #b0a898;
-  --ink-3: #7f786c;
-  --ink-4: #57524a;
+  --ink-3: #8e877a;
+  --ink-4: #625d54;
   --line: rgba(255, 238, 214, 0.08);
   --line-strong: rgba(255, 238, 214, 0.14);
   --accent: #d6a670;
@@ -146,8 +153,8 @@
   --bg-overlay: rgba(0, 0, 0, 0.6);
   --ink: #e2e2e0;
   --ink-2: #a3a3a0;
-  --ink-3: #6f6f6c;
-  --ink-4: #484846;
+  --ink-3: #7a7a77;
+  --ink-4: #525250;
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.14);
   --accent: #d9b07f;

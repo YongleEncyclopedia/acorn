@@ -8,14 +8,15 @@
 .shell[data-mode="wide"] {
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
 }
-.shell[data-sidebar="hidden"] {
-  grid-template-columns: var(--list-w) minmax(0, 1fr);
-}
-.shell[data-sidebar="hidden"][data-mode="wide"] {
-  grid-template-columns: minmax(0, 1fr);
-}
-.shell[data-sidebar="hidden"] > .sidebar {
-  display: none;
+/* 专注阅读: an open article has the window to itself (phones always read this way, see the 760px rules) */
+@media (min-width: 761px) {
+  .shell[data-focus="true"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .shell[data-focus="true"] > .sidebar,
+  .shell[data-focus="true"] > .list-pane {
+    display: none;
+  }
 }
 .pane {
   min-width: 0;
@@ -54,11 +55,15 @@
     width: 280px;
     z-index: 40;
     transform: translateX(-102%);
-    transition: transform var(--dur-3) var(--ease);
-    box-shadow: var(--shadow-pop);
+    /* closed: out of the tab order too, and without the shadow that used to shade the left edge of the page */
+    visibility: hidden;
+    transition: transform var(--dur-3) var(--ease), visibility 0s var(--dur-3);
   }
   .shell[data-drawer="open"] > .sidebar {
     transform: none;
+    visibility: visible;
+    transition: transform var(--dur-3) var(--ease), visibility 0s;
+    box-shadow: var(--shadow-pop);
   }
   .drawer-scrim {
     position: fixed;
@@ -883,10 +888,22 @@ input[type="range"].slider::-moz-range-thumb {
   background: var(--bg-hover);
   outline: none;
 }
+.menu-item .text {
+  min-width: 0;
+}
 .menu-item .hint {
   margin-left: auto;
+  padding-left: 12px;
   color: var(--ink-3);
   font-size: 12px;
+}
+.menu-item[aria-checked="true"] {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.menu-item:disabled {
+  opacity: 0.45;
+  pointer-events: none;
 }
 .menu-item.danger {
   color: var(--danger);
@@ -928,6 +945,10 @@ input[type="range"].slider::-moz-range-thumb {
   box-shadow: var(--shadow-pop);
   animation: rise var(--dur-3) var(--ease);
   overflow: hidden;
+}
+.dialog:focus,
+.popover:focus {
+  outline: none;
 }
 .dialog.sm {
   width: min(440px, 100%);
@@ -1111,6 +1132,9 @@ input[type="range"].slider::-moz-range-thumb {
   --size: 18px;
   border-width: 1.2px;
   box-shadow: none;
+  /* at this size the worn ink edge only blurs the character */
+  filter: none;
+  transform: rotate(-5deg);
 }
 @keyframes stamp {
   0% {
@@ -1716,8 +1740,8 @@ input[type="range"].slider::-moz-range-thumb {
   padding: 9px 10px;
   border-radius: 9px;
 }
-.palette-item[aria-selected="true"],
-.palette-item:hover {
+/* the selection follows the pointer (see Results), so a pointer at rest never lights up a second row */
+.palette-item[aria-selected="true"] {
   background: var(--bg-hover);
 }
 .palette-item .t {
@@ -2196,4 +2220,377 @@ input[type="range"].slider::-moz-range-thumb {
 .movein-strip .progress {
   flex: 1;
   width: auto;
+}
+
+/* ───────────────────────── List: hover actions, density, view options ───────────────────────── */
+.entry-main {
+  position: relative;
+  min-width: 0;
+}
+.entry-actions {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  display: none;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-2), inset 0 0 0 1px var(--line);
+}
+.entry-actions button {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+  transition: background var(--dur-1), color var(--dur-1);
+}
+.entry-actions button:hover {
+  background: var(--bg-hover);
+  color: var(--accent-ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .entry:hover .entry-actions {
+    display: flex;
+    animation: fade-in var(--dur-1) var(--ease);
+  }
+}
+.entry-list[data-density="compact"] .entry {
+  padding-top: 8px;
+  padding-bottom: 9px;
+}
+.entry-list[data-density="compact"] .entry-meta {
+  margin-bottom: 2px;
+}
+.entry-list[data-density="compact"] .entry-title {
+  font-size: 14.5px;
+  -webkit-line-clamp: 2;
+}
+.entry-list[data-density="compact"] .entry-title-tr {
+  font-size: 13px;
+  -webkit-line-clamp: 1;
+}
+.entry-list[data-density="compact"] .unread-dot {
+  top: 15px;
+}
+.view-opts {
+  width: 268px;
+  padding: 8px 10px;
+  display: grid;
+  gap: 4px;
+}
+.view-opts .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  font-size: 13.5px;
+  color: var(--ink-2);
+  cursor: default;
+}
+
+/* ───────────────────────── Reader pane with nothing open ───────────────────────── */
+.home {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 40px 28px;
+}
+.home-inner {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+}
+.home .logo {
+  color: var(--ink-4);
+  margin-bottom: 4px;
+}
+.home h2 {
+  font-family: var(--font-kai);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+.home .day {
+  font-size: 13.5px;
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+.home .btn {
+  margin-top: 12px;
+}
+.home .btn kbd {
+  margin-left: 2px;
+}
+.home-resume {
+  width: 100%;
+  margin-top: 26px;
+  text-align: left;
+}
+.home-resume h3 {
+  padding: 0 4px 8px;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+.resume {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  text-align: left;
+  transition: background var(--dur-1);
+}
+.resume:hover {
+  background: var(--bg-hover);
+}
+.resume .txt {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.resume b {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.45;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.resume .txt span {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home .keys {
+  margin-top: 26px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.home .keys .link-btn {
+  margin-left: 6px;
+  font-size: 12.5px;
+}
+
+/* ───────────────────────── Settings: section index ───────────────────────── */
+.wide-pane {
+  container: wide / inline-size;
+}
+/*
+ * The bar of a wide page (藏, 批注, 订阅, 设置, 搜索) only holds the button that opens the navigation drawer.
+ * It stays in view on a tablet, where that button is the only way to the navigation; on a wide screen there is
+ * no button and on a phone the tab bar does that job, so there it is just the page's top margin.
+ */
+@media (min-width: 981px), (max-width: 760px) {
+  .pane-head.wide-head {
+    position: static;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+@media (max-width: 760px) {
+  /* a phone scrolls the page; were the pane a scroll container too, nothing inside it could stick to the screen */
+  .wide-pane.scroll {
+    overflow: visible;
+  }
+}
+.settings {
+  position: relative;
+}
+.settings-section {
+  scroll-margin-top: 64px;
+}
+@media (max-width: 980px) {
+  .settings-section {
+    scroll-margin-top: calc(var(--topbar-h) + var(--safe-t) + 60px);
+  }
+}
+@media (max-width: 760px) {
+  .settings-section {
+    scroll-margin-top: calc(var(--safe-t) + 60px);
+  }
+}
+.settings-nav {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  margin: 0 -28px 14px;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter: saturate(1.4) blur(16px);
+  -webkit-backdrop-filter: saturate(1.4) blur(16px);
+}
+@media (max-width: 980px) {
+  .settings-nav {
+    top: calc(var(--topbar-h) + var(--safe-t));
+  }
+}
+@media (max-width: 760px) {
+  .settings-nav {
+    top: 0;
+    padding-top: var(--safe-t);
+    margin-inline: -14px;
+  }
+}
+.settings-nav .inner {
+  display: flex;
+  gap: 6px;
+  padding: 10px 28px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+@media (max-width: 760px) {
+  .settings-nav .inner {
+    padding-inline: 14px;
+  }
+}
+.settings-nav .inner::-webkit-scrollbar {
+  display: none;
+}
+.settings-nav a {
+  flex: none;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 15px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  color: var(--ink-2);
+  background: var(--bg-elev);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: background var(--dur-1), color var(--dur-1), box-shadow var(--dur-1);
+}
+.settings-nav a:hover {
+  color: var(--ink);
+}
+.settings-nav a[aria-current="true"] {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  box-shadow: none;
+}
+/* room beside the column: the strip becomes an index that stays put while the page scrolls */
+@container wide (min-width: 1120px) {
+  .settings-nav {
+    position: absolute;
+    top: 150px;
+    bottom: 0;
+    right: 100%;
+    width: 148px;
+    margin: 0;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .settings-nav .inner {
+    position: sticky;
+    top: 32px;
+    flex-direction: column;
+    gap: 1px;
+    padding: 0;
+    overflow: visible;
+  }
+  .settings-nav a,
+  .settings-nav a[aria-current="true"] {
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: none;
+    box-shadow: none;
+    color: var(--ink-3);
+    justify-content: flex-end;
+  }
+  .settings-nav a:hover {
+    color: var(--ink);
+    background: var(--bg-hover);
+  }
+  .settings-nav a[aria-current="true"] {
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+}
+
+/* ───────────────────────── Keyboard shortcuts ───────────────────────── */
+.shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+  gap: 6px 36px;
+}
+.shortcuts h3 {
+  padding: 12px 0 6px;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+.shortcuts dl {
+  margin: 0;
+}
+.shortcuts dl > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 34px;
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+}
+.shortcuts dt {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.shortcuts dd {
+  margin: 0;
+  flex: none;
+}
+.keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.keys .join {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+kbd {
+  white-space: nowrap;
+}
+
+/* command palette rows */
+.palette-item .ico {
+  flex: none;
+  width: 18px;
+  margin-top: 2px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+}
+.palette-item .body {
+  flex: 1;
+  min-width: 0;
+}
+.palette-item kbd {
+  flex: none;
+  align-self: center;
 }

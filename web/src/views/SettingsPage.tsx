@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Download, HardDrive, KeyRound, LogOut, Menu as MenuIcon, Plus, Rss, ScrollText, Send, Smartphone, Trash2 } from "lucide-react";
@@ -13,6 +13,8 @@ import { Segmented, Slider, Switch } from "../components/Controls.tsx";
 import { Dialog } from "../components/Dialog.tsx";
 import { Seal } from "../components/Seal.tsx";
 import { PhoneLogin } from "../components/PhoneLogin.tsx";
+import { ShortcutList } from "../components/Shortcuts.tsx";
+import { useDocumentTitle } from "../lib/shell.ts";
 import type { Bootstrap, Settings, Stats, TranslateSettings } from "../../../src/shared/types.ts";
 import { TARGET_LANGS } from "../../../src/shared/translate.ts";
 
@@ -275,7 +277,7 @@ function WechatBridge({ s, save }: { s: Settings; save: (patch: Partial<Settings
   // we-mp-rss's WeChat logins lapse every few days and the accounts then go quiet without an error anywhere.
   const stale = !!last && accounts.length > 0 && Date.now() - last > 36 * 3_600_000;
   return (
-    <section className="settings-section">
+    <section className="settings-section" id="wechat">
       <h2>微信公众号</h2>
       <div className="settings-card">
         <div className="setting-row stack">
@@ -378,7 +380,7 @@ function Backup({ s, save, stats }: { s: Settings; save: (patch: Partial<Setting
   const last = status.data?.last;
   const running = status.data?.running;
   return (
-    <section className="settings-section">
+    <section className="settings-section" id="backup">
       <h2>备份与导出</h2>
       <div className="settings-card">
         <div className="setting-row stack">
@@ -450,7 +452,85 @@ function Backup({ s, save, stats }: { s: Settings; save: (patch: Partial<Setting
   );
 }
 
+const SECTIONS: [id: string, label: string][] = [
+  ["appearance", "阅读外观"],
+  ["habits", "阅读习惯"],
+  ["rsshub", "RSSHub"],
+  ["translate", "翻译与要点"],
+  ["wechat", "微信公众号"],
+  ["devices", "多设备"],
+  ["agents", "Agent 与令牌"],
+  ["digest", "每日摘要"],
+  ["data", "数据"],
+  ["backup", "备份与导出"],
+  ["account", "账户"],
+  ["shortcuts", "快捷键"],
+];
+
+/** Which section the page is scrolled to. The pane scrolls on desktop, the page itself on a phone. */
+function useActiveSection(pane: React.RefObject<HTMLElement | null>, ready: boolean): string {
+  const [active, setActive] = useState(SECTIONS[0][0]);
+  useEffect(() => {
+    const el = pane.current;
+    if (!ready || !el) return;
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const line = Math.max(el.getBoundingClientRect().top, 0) + 150;
+      const atEnd = el.scrollHeight > el.clientHeight ? el.scrollTop + el.clientHeight >= el.scrollHeight - 4 : window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+      let at = SECTIONS[0][0];
+      for (const [id] of SECTIONS) if ((document.getElementById(id)?.getBoundingClientRect().top ?? Infinity) <= line) at = id;
+      // the last sections are too short to ever reach the top of the page
+      setActive(atEnd ? SECTIONS[SECTIONS.length - 1][0] : at);
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(measure);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
+    measure();
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [pane, ready]);
+  return active;
+}
+
+/** The page is a dozen sections long: an index beside it on a wide screen, a strip of chips above it elsewhere. */
+function SectionNav({ active }: { active: string }) {
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    // keep the current chip in sight in the horizontal strip, without moving the page
+    const el = ref.current?.querySelector<HTMLElement>('[aria-current="true"]');
+    const strip = ref.current?.firstElementChild as HTMLElement | null;
+    if (el && strip && strip.scrollWidth > strip.clientWidth) strip.scrollTo({ left: el.offsetLeft - strip.clientWidth / 2 + el.offsetWidth / 2, behavior: "smooth" });
+  }, [active]);
+  return (
+    <nav ref={ref} className="settings-nav" aria-label="设置目录">
+      <div className="inner">
+        {SECTIONS.map(([id, label]) => (
+          <a
+            key={id}
+            href={`#${id}`}
+            aria-current={active === id ? "true" : undefined}
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById(id)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+              window.history.replaceState(window.history.state, "", `#${id}`);
+            }}
+          >
+            {label}
+          </a>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 export function SettingsPage() {
+  const pane = useRef<HTMLElement>(null);
   const boot = useBootstrap();
   const qc = useQueryClient();
   const [s, save] = useSettings();
@@ -468,6 +548,8 @@ export function SettingsPage() {
   const deviceOrigin = addrs.data?.origins[0]?.origin || origin;
   const bookmarklet = `javascript:(()=>{window.open('${origin}/capture?url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title))})()`;
   const ready = !!s && !!boot.data;
+  const active = useActiveSection(pane, ready);
+  useDocumentTitle("设置");
   useEffect(() => {
     if (ready && window.location.hash) document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: "start" });
   }, [ready]);
@@ -475,13 +557,13 @@ export function SettingsPage() {
 
   return (
     <Layout mode="wide">
-      <main className="pane wide-pane scroll" style={{ overflowY: "auto" }}>
-        <header className="pane-head" style={{ background: "transparent", backdropFilter: "none" }}>
+      <main ref={pane} className="pane wide-pane scroll">
+        <header className="pane-head wide-head">
           <button className="icon-btn menu-btn" onClick={() => ui.set({ drawer: true })} aria-label="打开导航">
             <MenuIcon size={20} />
           </button>
         </header>
-        <div className="page narrow">
+        <div className="page narrow settings">
           <div className="page-hero">
             <div>
               <h1>设置</h1>
@@ -494,8 +576,9 @@ export function SettingsPage() {
               </Link>
             </div>
           </div>
+          <SectionNav active={active} />
 
-          <section className="settings-section">
+          <section className="settings-section" id="appearance">
             <h2>阅读外观</h2>
             <div className="settings-card">
               <div className="setting-row stack">
@@ -557,7 +640,7 @@ export function SettingsPage() {
             </div>
           </section>
 
-          <section className="settings-section">
+          <section className="settings-section" id="habits">
             <h2>阅读习惯</h2>
             <div className="settings-card">
               <div className="setting-row">
@@ -623,7 +706,7 @@ export function SettingsPage() {
             </div>
           </section>
 
-          <section className="settings-section">
+          <section className="settings-section" id="rsshub">
             <h2>RSSHub</h2>
             <div className="settings-card">
               <div className="setting-row stack">
@@ -651,7 +734,7 @@ export function SettingsPage() {
 
           <WechatBridge s={s} save={save} />
 
-          <section className="settings-section">
+          <section className="settings-section" id="devices">
             <h2>多设备</h2>
             <div className="settings-card">
               <div className="setting-row stack">
@@ -695,7 +778,7 @@ export function SettingsPage() {
             </div>
           </section>
 
-          <section className="settings-section">
+          <section className="settings-section" id="agents">
             <h2>Agent 与 API 令牌</h2>
             <div className="settings-card">
               <div className="setting-row stack">
@@ -709,7 +792,7 @@ export function SettingsPage() {
             </div>
           </section>
 
-          <section className="settings-section">
+          <section className="settings-section" id="digest">
             <h2>每日摘要 · Telegram</h2>
             <div className="settings-card">
               {boot.data.telegram ? (
@@ -765,7 +848,7 @@ export function SettingsPage() {
             </div>
           </section>
 
-          <section className="settings-section">
+          <section className="settings-section" id="data">
             <h2>数据</h2>
             <div className="stat-row">
               <div className="stat">
@@ -819,7 +902,7 @@ export function SettingsPage() {
 
           <Backup s={s} save={save} stats={stats.data} />
 
-          <section className="settings-section">
+          <section className="settings-section" id="account">
             <h2>账户</h2>
             <div className="settings-card">
               <div className="setting-row stack">
@@ -866,31 +949,10 @@ export function SettingsPage() {
             </div>
           </section>
 
-          <section className="settings-section">
+          <section className="settings-section" id="shortcuts">
             <h2>快捷键</h2>
-            <div className="settings-card">
-              {[
-                ["J / K", "下一篇 / 上一篇"],
-                ["S", "稍后读（并自动入藏）"],
-                ["A", "入藏"],
-                ["M", "标为已读 / 未读"],
-                ["F", "抓取全文 / 切换原始内容"],
-                ["H", "本文批注"],
-                ["T", "翻译 / 关闭翻译"],
-                ["I", "要点（AI 提炼）"],
-                ["V", "打开原文"],
-                ["R", "刷新"],
-                ["Shift + A", "全部标为已读"],
-                ["⌘K 或 /", "搜索"],
-                ["G 然后 U / T / S / A / N", "去未读 / 今日 / 稍后读 / 藏 / 批注"],
-              ].map(([k, v]) => (
-                <div key={k} className="setting-row" style={{ minHeight: 44, padding: "8px 16px" }}>
-                  <div className="txt">
-                    <span style={{ color: "var(--ink)", marginTop: 0 }}>{v}</span>
-                  </div>
-                  <kbd>{k}</kbd>
-                </div>
-              ))}
+            <div className="settings-card" style={{ padding: "6px 18px 14px" }}>
+              <ShortcutList />
             </div>
           </section>
           <p className="muted" style={{ textAlign: "center", fontSize: 12.5, marginTop: 24 }}>

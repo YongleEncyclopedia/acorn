@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Camera, Copy, ExternalLink, FileCode2, FileDown, FileText, Globe, Languages, LifeBuoy, MoreHorizontal, RefreshCcw, RotateCw, Sparkles, Trash2, Type } from "lucide-react";
+import { ArrowLeft, Camera, Copy, ExternalLink, FileCode2, FileDown, FileText, Globe, Languages, LifeBuoy, ListTree, MoreHorizontal, RefreshCcw, RotateCw, Sparkles, Trash2, Type } from "lucide-react";
 import { Layout } from "./Layout.tsx";
-import { ArticleView, type ArticleHandle } from "./ArticleView.tsx";
+import { ArticleView, type ArticleHandle, type OutlineItem } from "./ArticleView.tsx";
+import { OUTLINE_MIN, OutlineRail, headingLabel, jumpToHeading, useActiveHeading } from "../components/Outline.tsx";
+import { pageBy, useDocumentTitle } from "../lib/shell.ts";
 import { TranslateStatus } from "../components/TranslateStatus.tsx";
 import { SummaryCard, useSummary } from "../components/SummaryCard.tsx";
 import { useReaderTranslation } from "../lib/translate.ts";
@@ -156,7 +158,12 @@ export function ArchiveReader({ id }: { id: number }) {
   const more = useAnchor();
   const prefsMenu = useAnchor();
   const article = useRef<ArticleHandle>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [outline, setOutline] = useState<OutlineItem[]>([]);
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const activeHeading = useActiveHeading(outline, scrollRef, mobile);
   const a = q.data;
+  useDocumentTitle(a?.title);
   const changed = () => {
     qc.invalidateQueries({ queryKey: ["archive", id] });
     qc.invalidateQueries({ queryKey: ["archives"] });
@@ -165,7 +172,7 @@ export function ArchiveReader({ id }: { id: number }) {
   const trCfg = boot.data?.settings.translate;
   const tr = useReaderTranslation(article, { id: `archive:${id}:${snap?.id || 0}`, html: a?.content || "", title: a?.title || "", cfg: trCfg });
   const tldr = useSummary({ archiveId: id }, `${id}:${snap?.id || 0}`, !!a);
-  useHotkeys({ t: tr.toggle, i: tldr.toggle }, !!a);
+  useHotkeys({ t: tr.toggle, i: tldr.toggle, space: () => void pageBy(mobile ? null : scrollRef.current, 1), "shift+space": () => void pageBy(mobile ? null : scrollRef.current, -1) }, !!a);
 
   const recapture = async (method: "fetch" | "browser") => {
     try {
@@ -241,7 +248,7 @@ export function ArchiveReader({ id }: { id: number }) {
             <MoreHorizontal size={19} />
           </button>
         </div>
-        <div className="reader-scroll scroll">
+        <div ref={scrollRef} className="reader-scroll scroll">
           {q.isLoading ? (
             <div className="empty">
               <span className="spinner" />
@@ -304,7 +311,7 @@ export function ArchiveReader({ id }: { id: number }) {
                 </header>
                 <SummaryCard s={tldr} />
                 <TranslateStatus tr={tr} cfg={trCfg} />
-                <ArticleView ref={article} html={a.content} highlights={a.highlights} target={{ archiveId: a.id }} prefs={prefs} translation={tr.shown} onChanged={changed} />
+                <ArticleView ref={article} html={a.content} highlights={a.highlights} target={{ archiveId: a.id }} prefs={prefs} translation={tr.shown} onChanged={changed} onOutline={setOutline} />
                 {mobile && <Aside a={a} snapshotId={snap?.id || 0} onSnapshot={setSnapshotId} onChanged={changed} />}
               </div>
               {!mobile && <Aside a={a} snapshotId={snap?.id || 0} onSnapshot={setSnapshotId} onChanged={changed} />}
@@ -316,11 +323,19 @@ export function ArchiveReader({ id }: { id: number }) {
             <ReaderPrefsPanel />
           </Popover>
         )}
+        {outlineOpen && (
+          <Popover anchor={more.el} onClose={() => setOutlineOpen(false)} className="outline-menu scroll" label="目录">
+            <Menu onClose={() => setOutlineOpen(false)} items={outline.map((h, i) => ({ label: headingLabel(h), depth: h.depth, checked: i === activeHeading, onSelect: () => jumpToHeading(h) }))} />
+          </Popover>
+        )}
+        {/* the details panel has the right edge here, so the outline keeps to the left one */}
+        {!mobile && a && <OutlineRail items={outline} active={activeHeading} side="left" />}
         {more.open && a && (
           <Popover anchor={more.el} onClose={more.close}>
             <Menu
               onClose={more.close}
               items={[
+                ...(mobile && outline.length >= OUTLINE_MIN ? [{ label: "目录", icon: <ListTree size={15} />, onSelect: () => setOutlineOpen(true) }, "sep" as const] : []),
                 { label: "检查原文是否还在", icon: <RefreshCcw size={15} />, onSelect: recheck },
                 { label: "重新入藏一个新版本", icon: <RotateCw size={15} />, onSelect: () => recapture("fetch") },
                 ...(boot.data?.egoBrowser ? [{ label: "用我的浏览器重新入藏", icon: <Globe size={15} />, onSelect: () => recapture("browser") }] : []),

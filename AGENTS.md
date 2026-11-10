@@ -50,10 +50,17 @@ src/server/
   notify/telegram.ts
 src/shared/types.ts    API types shared by server and web — change both sides together
 src/shared/translate.ts which article blocks get translated, language detection (runs on linkedom and in the browser)
+src/shared/article.ts  what the reader works out before setting an article: Latin-script paragraphs, the outline
 src/client/client.ts   HTTP client used by the CLI and MCP server
 src/cli/main.ts        `acorn` CLI
 src/mcp/server.ts      MCP server (stdio)
 web/src/               React 19 + TanStack Query + wouter; views/*, components/*, lib/*, styles/*.css (design tokens in tokens.css)
+  lib/hotkeys.ts       the one keyboard dispatcher (useHotkeys); lib/layers.ts: dialogs, popovers and the image viewer
+                       register as layers, so shortcuts and Escape only reach whatever is in front
+  lib/local.ts         settings of this device (list density, focus mode); settings shared by all devices go
+                       through /api/settings instead
+  lib/shell.ts         document title, focus mode (专注阅读), view transitions
+  fonts.ts             the reading fonts, loaded as a separate stylesheet so they do not block the first paint
 plugins/               user plugins (TypeScript, hot-reloaded)
 tests/                 vitest; fixtures are real pages saved from the web
 ```
@@ -81,8 +88,17 @@ tests/                 vitest; fixtures are real pages saved from the web
 - **Translation** → the reader sends block texts to `POST /api/translate`; translations are cached per text hash in the
   `translations` table and inserted under each block by `web/src/lib/translate.ts` (marked `data-acorn-tr`, which
   highlights and block detection skip). Engines live in `src/server/translate/engine.ts`; tests use fake servers.
-- **UI change** → `web/src`; keep colors as CSS variables in `styles/tokens.css` (5 themes must stay readable);
+- **UI change** → `web/src`; keep colors as CSS variables in `styles/tokens.css` (5 themes must stay readable:
+  `--ink-3` is text and keeps 4.5:1 against the backgrounds, `--ink-4` is decoration only);
   check desktop (three panes) and mobile (≤ 760px, tab bar) layouts.
+- **Keyboard shortcut** → register it with `useHotkeys` next to what it acts on, and list it in
+  `web/src/components/Shortcuts.tsx` (the `?` sheet and the settings page render that list).
+  Anything that opens on top of the page calls `useLayer(onEscape)`; a dialog also gets `useFocusTrap`.
+- **Article typography** → `web/src/styles/reader.css`. Justification and the two-character indent apply to
+  Chinese paragraphs only: `markScripts` (src/shared/article.ts) tags Latin-script paragraphs with `data-latin`.
+- **A list query gets slow** → `EntryStore.listSql` builds every list. The 未读 and 在读 lists rely on partial
+  indexes (migration 004) that SQLite only uses while the query repeats the index's condition literally;
+  `tests/server.test.ts` checks the query plans.
 
 ## Data safety
 
@@ -94,10 +110,11 @@ tests/                 vitest; fixtures are real pages saved from the web
 ## API in one breath
 
 Session cookie (web) or `Authorization: Bearer <token>` (CLI/MCP/scripts). JSON under `/api/*`:
-`bootstrap, counts, feeds (+/preview, /:id/refresh, /:id/logs), folders, entries (list/detail/PATCH/fulltext/mark),
+`bootstrap, counts, feeds (+/preview, /:id/refresh, /:id/logs), folders, entries (list/detail/PATCH/fulltext/mark — by ids, or by
+feed / folder / view, optionally `before` a time, `upTo` an entry or `newerThan` one),
 archives (list/detail/POST capture/import/:id/snapshot/:id/recheck/:id/wayback/PATCH/DELETE),
 imports (list/POST file/preview/:id/items/:id/retry/PATCH/DELETE — moving in from other tools), export (ZIP, ?full=1),
 backup (status/POST run), highlights, search, settings,
 tokens, stats, logs, opml, digest, events (SSE), img (image proxy), translate (+/:id, /models, /test), summary, wechat-bridge (+/sync),
-addresses, login-link`. One-time sign-in: `GET /login/<token>` (public; the token comes from `POST /api/login-link`). Archive files: `/files/archive/<path>`.
+addresses, login-link`. Text responses are gzipped for clients that accept it. One-time sign-in: `GET /login/<token>` (public; the token comes from `POST /api/login-link`). Archive files: `/files/archive/<path>`.
 Google Reader API: `/accounts/ClientLogin`, `/reader/api/0/*` (also under `/api/greader`). RSS out: `/out/*.xml?key=`.

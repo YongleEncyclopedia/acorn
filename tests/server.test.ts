@@ -9,7 +9,8 @@ import os from "node:os";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { loadConfig } from "../src/server/config.ts";
-import { createApp, ensureCliToken, type App } from "../src/server/app.ts";
+import { COUNTS_SQL, createApp, ensureCliToken, type App } from "../src/server/app.ts";
+import { listSql } from "../src/server/store/entries.ts";
 import { createHttp } from "../src/server/api/http.ts";
 import { setPassword } from "../src/server/api/auth.ts";
 
@@ -228,5 +229,93 @@ describe("signing in another device", () => {
 
   it("does not hand out links to anyone who is not signed in", async () => {
     expect((await web.request("/api/login-link", { method: "POST" })).status).toBe(401);
+  });
+});
+
+describe("serving a phone on a slow link", () => {
+  it("gzips JSON for clients that ask, and only for them", async () => {
+    const plain = await req("/api/bootstrap");
+    expect(plain.headers.get("content-encoding")).toBeNull();
+
+    const zipped = await req("/api/bootstrap", { headers: { "accept-encoding": "gzip, deflate, br" } });
+    expect(zipped.headers.get("content-encoding")).toBe("gzip");
+    expect(zipped.headers.get("vary")).toMatch(/accept-encoding/i);
+    const text = await new Response(zipped.body!.pipeThrough(new DecompressionStream("gzip"))).text();
+    expect(JSON.parse(text).feeds.length).toBeGreaterThan(0);
+  });
+
+  it("leaves images and ZIP exports as they are", async () => {
+    const zip = await req("/api/export", { headers: { "accept-encoding": "gzip" } });
+    expect(zip.headers.get("content-type")).toBe("application/zip");
+    expect(zip.headers.get("content-encoding")).toBeNull();
+    await zip.arrayBuffer();
+    const img = await req(`/api/img?u=${encodeURIComponent(`${base}/img/a.png`)}`, { headers: { "accept-encoding": "gzip" } });
+    expect(img.status).toBe(200);
+    expect(img.headers.get("content-encoding")).toBeNull();
+  });
+});
+
+describe("marking a stretch of a list as read", () => {
+  const mark = async (body: object) => (await json("/api/entries/mark", { method: "POST", body: JSON.stringify(body) })).changed;
+  const unreadIds = async (feed: number) => (await json(`/api/entries?view=unread&feed=${feed}`)).items.map((e: { id: number }) => e.id);
+
+  it("marks what is newer than an entry, or that entry and everything older", async () => {
+    const all = await json("/api/entries?view=all&feed=1");
+    const [newer, older] = all.items as { id: number; publishedAt: number }[];
+    expect(newer.publishedAt).toBeGreaterThan(older.publishedAt);
+    const unread = () => req("/api/entries/mark", { method: "POST", body: JSON.stringify({ ids: [newer.id, older.id], read: false }) });
+
+    await unread();
+    expect(await mark({ feedId: 1, newerThan: older.id })).toBe(1);
+    expect(await unreadIds(1)).toEqual([older.id]);
+
+    await unread();
+    expect(await mark({ feedId: 1, upTo: older.id })).toBe(1);
+    expect(await unreadIds(1)).toEqual([newer.id]);
+
+    await unread();
+    expect(await mark({ feedId: 1, upTo: newer.id })).toBe(2);
+    expect(await mark({ feedId: 1, upTo: 987654 })).toBe(0); // an entry that does not exist marks nothing
+  });
+
+  it("splits entries published at the same instant the way the list orders them", async () => {
+    // A notice page with dates only: every item of a day has the same time, and the list falls back to the id.
+    const feed = app.feeds.create({ kind: "feed", url: `${base}/same-day.xml`, title: "同一天" });
+    const day = Date.UTC(2026, 9, 9);
+    const item = (n: number) => ({ guid: `same-${n}`, url: null, title: `通知 ${n}`, author: null, content: null, summary: null, image: null, publishedAt: day, wordCount: 0 });
+    app.entries.upsert(feed.id, [item(3), item(2), item(1)]);
+    const listed = (await json(`/api/entries?view=all&feed=${feed.id}`)).items.map((e: { id: number }) => e.id) as number[];
+    const [top, middle, bottom] = listed;
+
+    expect(await mark({ feedId: feed.id, newerThan: middle })).toBe(1);
+    expect(await unreadIds(feed.id)).toEqual([middle, bottom]);
+
+    await req("/api/entries/mark", { method: "POST", body: JSON.stringify({ ids: listed, read: false }) });
+    expect(await mark({ feedId: feed.id, upTo: middle })).toBe(2);
+    expect(await unreadIds(feed.id)).toEqual([top]);
+    app.feeds.delete(feed.id);
+  });
+});
+
+describe("large libraries", () => {
+  // Partial indexes are only used while the queries repeat their conditions literally; this catches the day
+  // someone changes one side and the lists quietly go back to scanning every entry.
+  const plan = (sql: string, ...params: (string | number)[]) =>
+    app.db
+      .all<{ detail: string }>(`explain query plan ${sql}`, ...params)
+      .map((r) => r.detail)
+      .join("\n");
+
+  it("lists unread and in-progress entries through their own indexes", () => {
+    const unread = listSql({ view: "unread" });
+    expect(plan(unread.sql, ...(unread.params as number[]), 41)).toContain("entries_unread_time");
+    const reading = listSql({ view: "progress" });
+    expect(plan(reading.sql, ...(reading.params as number[]), 41)).toContain("entries_in_progress");
+  });
+
+  it("counts for the sidebar without scanning the entries table", () => {
+    const p = plan(COUNTS_SQL, 0);
+    expect(p).toContain("entries_in_progress");
+    expect(p).not.toMatch(/SCAN entries(?! USING)/);
   });
 });

@@ -207,7 +207,11 @@ function TabBar() {
   );
 }
 
-export function Layout({ mode, view, children }: { mode: "three" | "wide"; view?: "list" | "reader"; children: ReactNode }) {
+/**
+ * The app frame. `view` says which pane a phone shows; `focus` (专注阅读) hides the navigation and the list on
+ * wider screens while an article is open.
+ */
+export function Layout({ mode, view, focus, children }: { mode: "three" | "wide"; view?: "list" | "reader"; focus?: boolean; children: ReactNode }) {
   const drawer = ui.use((s) => s.drawer);
   const compact = useCompact();
   const [loc] = useLocation();
@@ -216,7 +220,7 @@ export function Layout({ mode, view, children }: { mode: "three" | "wide"; view?
   }, [loc]);
   return (
     <>
-      <div className="shell" data-mode={mode === "wide" ? "wide" : undefined} data-view={view} data-drawer={drawer ? "open" : undefined}>
+      <div className="shell" data-mode={mode === "wide" ? "wide" : undefined} data-view={view} data-focus={focus && view === "reader" ? "true" : undefined} data-drawer={drawer ? "open" : undefined}>
         <Sidebar />
         {children}
       </div>

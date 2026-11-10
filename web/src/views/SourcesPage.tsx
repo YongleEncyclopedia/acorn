@@ -8,6 +8,7 @@ import { api } from "../lib/api.ts";
 import { keys, useBootstrap } from "../lib/queries.ts";
 import { relTime, hostname, fullDate } from "../lib/format.ts";
 import { toast, toastError, ui } from "../lib/store.ts";
+import { useDocumentTitle } from "../lib/shell.ts";
 import { FeedIcon } from "../components/FeedIcon.tsx";
 import { Dialog } from "../components/Dialog.tsx";
 import { Segmented, Switch } from "../components/Controls.tsx";
@@ -346,6 +347,7 @@ export function SourcesPage() {
   const editId = Number(new URLSearchParams(search).get("edit") || 0);
   const fileInput = useRef<HTMLInputElement>(null);
   const [filter, setFilter] = useState<"all" | "failing">("all");
+  useDocumentTitle("订阅");
   const feeds = boot.data?.feeds || [];
   const editing = feeds.find((f) => f.id === editId);
   const groups = useMemo(() => {
@@ -377,8 +379,8 @@ export function SourcesPage() {
 
   return (
     <Layout mode="wide">
-      <main className="pane wide-pane scroll" style={{ overflowY: "auto" }}>
-        <header className="pane-head" style={{ background: "transparent", backdropFilter: "none" }}>
+      <main className="pane wide-pane scroll">
+        <header className="pane-head wide-head">
           <button className="icon-btn menu-btn" onClick={() => ui.set({ drawer: true })} aria-label="打开导航">
             <MenuIcon size={20} />
           </button>
