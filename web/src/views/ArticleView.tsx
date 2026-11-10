@@ -5,7 +5,8 @@ import { api } from "../lib/api.ts";
 import { clearHighlights, flashHighlight, renderHighlights, selectorFromRange } from "../lib/highlight.ts";
 import { applyTranslation, blockTexts, type ShownTranslation } from "../lib/translate.ts";
 import { TR_ATTR } from "../../../src/shared/translate.ts";
-import { toast, toastError, ui } from "../lib/store.ts";
+import { collectOutline, markScripts, type Heading } from "../../../src/shared/article.ts";
+import { toast, toastError, ui, type LightboxItem } from "../lib/store.ts";
 import { Popover } from "../components/Popover.tsx";
 import type { Highlight, HighlightColor, ReaderPrefs } from "../../../src/shared/types.ts";
 
@@ -34,6 +35,8 @@ export interface ArticleHandle {
   blockTexts: (lang: string) => string[];
 }
 
+export type OutlineItem = Heading<HTMLElement>;
+
 interface Props {
   html: string;
   highlights: Highlight[];
@@ -41,10 +44,27 @@ interface Props {
   prefs: ReaderPrefs;
   translation?: ShownTranslation | null;
   onChanged: () => void;
+  /** Called with the article's headings each time its HTML is (re)rendered. */
+  onOutline?: (items: OutlineItem[]) => void;
 }
 
-export const ArticleView = forwardRef<ArticleHandle, Props>(function ArticleView({ html, highlights, target, prefs, translation, onChanged }, ref) {
+/**
+ * The pictures worth paging through: not the ones that failed to load, are links, or are inline icons.
+ * Pictures further down that have not loaded yet (they are lazy) count too; the viewer loads them.
+ */
+function gallery(root: HTMLElement, clicked: HTMLImageElement): { items: LightboxItem[]; index: number } {
+  const icon = (img: HTMLImageElement) => img.complete && img.naturalWidth > 0 && img.naturalWidth < 96;
+  const imgs = [...root.querySelectorAll<HTMLImageElement>("img")].filter((img) => img === clicked || (!img.classList.contains("broken") && !img.closest("a") && !icon(img)));
+  return {
+    items: imgs.map((img) => ({ src: img.currentSrc || img.src, caption: (img.closest("figure")?.querySelector("figcaption")?.textContent || img.alt || "").trim() })),
+    index: Math.max(0, imgs.indexOf(clicked)),
+  };
+}
+
+export const ArticleView = forwardRef<ArticleHandle, Props>(function ArticleView({ html, highlights, target, prefs, translation, onChanged, onOutline }, ref) {
   const el = useRef<HTMLDivElement>(null);
+  const outline = useRef(onOutline);
+  outline.current = onOutline;
   const [sel, setSel] = useState<{ rect: DOMRect; range: Range } | null>(null);
   const [editing, setEditing] = useState<{ id: number; anchor: HTMLElement; focusNote?: boolean } | null>(null);
   const local = useRef<Highlight[]>(highlights);
@@ -77,6 +97,8 @@ export const ArticleView = forwardRef<ArticleHandle, Props>(function ArticleView
       img.addEventListener("error", () => img.classList.add("broken"), { once: true });
     }
     for (const f of root.querySelectorAll("iframe")) f.setAttribute("loading", "lazy");
+    root.dataset.script = markScripts(root);
+    outline.current?.(collectOutline(root));
     applyTranslation(root, shown.current);
     renderHighlights(root, local.current);
   }, [html]);
@@ -125,9 +147,7 @@ export const ArticleView = forwardRef<ArticleHandle, Props>(function ArticleView
       setEditing({ id: Number(mark.dataset.id), anchor: mark });
       return;
     }
-    if (t.tagName === "IMG" && !t.closest("a")) {
-      ui.set({ lightbox: (t as HTMLImageElement).currentSrc || (t as HTMLImageElement).src });
-    }
+    if (t.tagName === "IMG" && !t.closest("a") && el.current) ui.set({ lightbox: gallery(el.current, t as HTMLImageElement) });
   }, []);
 
   const create = async (color: HighlightColor, withNote = false) => {

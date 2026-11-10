@@ -59,10 +59,19 @@ export function bytes(n: number): string {
 }
 
 /** Reading time: CJK ~ 420 chars/min, mixed counts ~ 330 units/min. */
+export function readingMinutes(words: number): number {
+  return words > 0 ? Math.max(1, Math.round(words / 360)) : 0;
+}
+
 export function readingTime(words: number): string {
-  if (!words) return "";
-  const m = Math.max(1, Math.round(words / 360));
-  return `${m} 分钟`;
+  return words ? `${readingMinutes(words)} 分钟` : "";
+}
+
+/** "还剩 6 分钟" once an article long enough to wonder about has been started; empty otherwise. */
+export function timeLeft(words: number, progress: number): string {
+  if (readingMinutes(words) < 3 || progress <= 0.004) return "";
+  if (progress >= 0.985) return "读完了";
+  return `还剩 ${Math.max(1, Math.ceil((words * (1 - progress)) / 360))} 分钟`;
 }
 
 export function greeting(now = Date.now()): string {

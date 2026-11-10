@@ -5,7 +5,7 @@ import type { Config } from "./config.ts";
 import { Db } from "./db/index.ts";
 import { SettingsStore } from "./store/settings.ts";
 import { FeedStore } from "./store/feeds.ts";
-import { EntryStore } from "./store/entries.ts";
+import { EntryStore, inProgress } from "./store/entries.ts";
 import { ArchiveStore } from "./store/archives.ts";
 import { HighlightStore } from "./store/highlights.ts";
 import { TokenStore } from "./store/tokens.ts";
@@ -63,20 +63,20 @@ export function createApp(cfg: Config): App {
   };
 }
 
-export function counts(app: App): Counts {
-  const r = app.db.get<Record<string, number>>(
-    `select
+/** Sidebar counts in one statement; its only parameter is the start of "today" (24 hours ago). */
+export const COUNTS_SQL = `select
       (select count(*) from entries where read_at is null) as unread,
       (select count(*) from entries where read_at is null and sort_at >= ?) as today,
       (select count(*) from entries where starred_at is not null) as starred,
       (select count(*) from archives) as archived,
-      (select count(*) from entries where progress > 0.02 and progress < 0.97) as in_progress,
+      (select count(*) from entries where ${inProgress()}) as in_progress,
       (select count(*) from highlights) as highlights,
       (select count(*) from archives where source_status = 'gone') as gone,
       (select count(*) from feeds) as feeds,
-      (select count(*) from feeds where error_count > 0) as failing`,
-    Date.now() - 86_400_000,
-  )!;
+      (select count(*) from feeds where error_count > 0) as failing`;
+
+export function counts(app: App): Counts {
+  const r = app.db.get<Record<string, number>>(COUNTS_SQL, Date.now() - 86_400_000)!;
   return {
     unread: r.unread,
     today: r.today,

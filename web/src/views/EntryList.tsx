@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Bookmark, Highlighter } from "lucide-react";
+import { Bookmark, BookmarkCheck, CircleCheck, CircleDot, Highlighter } from "lucide-react";
 import { FeedIcon } from "../components/FeedIcon.tsx";
 import { Seal } from "../components/Seal.tsx";
 import { dayKey, dayLabel, relTime } from "../lib/format.ts";
@@ -7,11 +7,12 @@ import { useTranslation } from "../lib/translate.ts";
 import { needsTranslation, sourceKey } from "../../../src/shared/translate.ts";
 import type { EntrySummary, Feed } from "../../../src/shared/types.ts";
 
-function Ring({ p }: { p: number }) {
+/** How far into an article you are. */
+export function Ring({ p, size = 15 }: { p: number; size?: number }) {
   const r = 6;
   const c = 2 * Math.PI * r;
   return (
-    <svg className="progress-ring" width="15" height="15" viewBox="0 0 16 16" aria-label={`已读 ${Math.round(p * 100)}%`}>
+    <svg className="progress-ring" width={size} height={size} viewBox="0 0 16 16" role="img" aria-label={`已读 ${Math.round(p * 100)}%`}>
       <circle cx="8" cy="8" r={r} fill="none" stroke="var(--line-strong)" strokeWidth="2" />
       <circle cx="8" cy="8" r={r} fill="none" stroke="var(--accent)" strokeWidth="2" strokeDasharray={`${c * p} ${c}`} transform="rotate(-90 8 8)" strokeLinecap="round" />
     </svg>
@@ -20,17 +21,22 @@ function Ring({ p }: { p: number }) {
 
 const thumb = (url: string, referer: string | null) => `/api/img?u=${encodeURIComponent(url)}${referer ? `&r=${encodeURIComponent(referer)}` : ""}`;
 
+/** What can be done to an entry without opening it: by swipe on a phone, from the hover buttons with a mouse. */
+export type EntryAction = "read" | "star";
+
 interface ItemProps {
   entry: EntrySummary;
   feed: Feed | undefined;
   selected: boolean;
   showSource: boolean;
+  compact: boolean;
   titleTr?: string;
   onOpen: (e: EntrySummary) => void;
-  onSwipe: (e: EntrySummary, dir: "left" | "right") => void;
+  onAction: (e: EntrySummary, action: EntryAction) => void;
+  onMenu: (e: EntrySummary, at: { x: number; y: number }) => void;
 }
 
-const Item = memo(function Item({ entry, feed, selected, showSource, titleTr, onOpen, onSwipe }: ItemProps) {
+const Item = memo(function Item({ entry, feed, selected, showSource, compact, titleTr, onOpen, onAction, onMenu }: ItemProps) {
   const [dx, setDx] = useState(0);
   const [imgOk, setImgOk] = useState(true);
   const start = useRef<{ x: number; y: number; active: boolean } | null>(null);
@@ -58,7 +64,7 @@ const Item = memo(function Item({ entry, feed, selected, showSource, titleTr, on
     if (s.active) setDx(Math.max(-140, Math.min(140, mx)));
   };
   const onPointerUp = () => {
-    if (start.current?.active && Math.abs(dx) > 84) onSwipe(entry, dx > 0 ? "right" : "left");
+    if (start.current?.active && Math.abs(dx) > 84) onAction(entry, dx > 0 ? "read" : "star");
     start.current = null;
     setDx(0);
   };
@@ -68,6 +74,10 @@ const Item = memo(function Item({ entry, feed, selected, showSource, titleTr, on
       className={`entry ${read ? "read" : ""}`}
       aria-current={selected}
       onClick={() => !Math.abs(dx) && onOpen(entry)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onMenu(entry, { x: e.clientX, y: e.clientY });
+      }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -81,7 +91,7 @@ const Item = memo(function Item({ entry, feed, selected, showSource, titleTr, on
         </div>
       )}
       <span className="unread-dot" />
-      <div style={{ minWidth: 0 }}>
+      <div className="entry-main">
         <div className="entry-meta">
           {showSource && (
             <>
@@ -100,9 +110,18 @@ const Item = memo(function Item({ entry, feed, selected, showSource, titleTr, on
         </div>
         <h3 className="entry-title">{entry.title}</h3>
         {titleTr && <div className="entry-title-tr">{titleTr}</div>}
-        {entry.summary && <p className="entry-excerpt">{entry.summary}</p>}
+        {entry.summary && !compact && <p className="entry-excerpt">{entry.summary}</p>}
+        {/* for the mouse; the keyboard has M and S, a phone swipes */}
+        <div className="entry-actions" onClick={(e) => e.stopPropagation()}>
+          <button tabIndex={-1} title={read ? "标为未读" : "标为已读"} aria-label={read ? "标为未读" : "标为已读"} onClick={() => onAction(entry, "read")}>
+            {read ? <CircleDot size={15} /> : <CircleCheck size={15} />}
+          </button>
+          <button tabIndex={-1} title={entry.starredAt ? "移出稍后读" : "稍后读"} aria-label={entry.starredAt ? "移出稍后读" : "稍后读"} onClick={() => onAction(entry, "star")}>
+            {entry.starredAt ? <BookmarkCheck size={15} /> : <Bookmark size={15} />}
+          </button>
+        </div>
       </div>
-      {entry.image && imgOk && <img className="entry-thumb" src={thumb(entry.image, entry.url)} alt="" loading="lazy" decoding="async" onError={() => setImgOk(false)} />}
+      {entry.image && imgOk && !compact && <img className="entry-thumb" src={thumb(entry.image, entry.url)} alt="" loading="lazy" decoding="async" onError={() => setImgOk(false)} />}
     </article>
   );
 });
@@ -116,8 +135,10 @@ export function EntryList({
   loadingMore,
   onLoadMore,
   onOpen,
-  onSwipe,
+  onAction,
+  onMenu,
   groupByDay,
+  compact = false,
   titleLang = null,
 }: {
   entries: EntrySummary[];
@@ -128,8 +149,11 @@ export function EntryList({
   loadingMore: boolean;
   onLoadMore: () => void;
   onOpen: (e: EntrySummary) => void;
-  onSwipe: (e: EntrySummary, dir: "left" | "right") => void;
+  onAction: (e: EntrySummary, action: EntryAction) => void;
+  onMenu: (e: EntrySummary, at: { x: number; y: number }) => void;
   groupByDay: boolean;
+  /** Titles only: no excerpts or pictures. */
+  compact?: boolean;
   /** Translate foreign-language titles into this language (null = off). */
   titleLang?: string | null;
 }) {
@@ -161,7 +185,7 @@ export function EntryList({
   }, [entries, groupByDay]);
 
   return (
-    <div>
+    <div className="entry-list" data-density={compact ? "compact" : undefined}>
       {groups.map((g) => (
         <section key={g.key}>
           {g.label && (
@@ -171,7 +195,7 @@ export function EntryList({
             </div>
           )}
           {g.items.map((e) => (
-            <Item key={e.id} entry={e} feed={feeds.get(e.feedId)} selected={e.id === selectedId} showSource={showSource} titleTr={titleLang ? titleTr.current.get(sourceKey(e.title)) : undefined} onOpen={onOpen} onSwipe={onSwipe} />
+            <Item key={e.id} entry={e} feed={feeds.get(e.feedId)} selected={e.id === selectedId} showSource={showSource} compact={compact} titleTr={titleLang ? titleTr.current.get(sourceKey(e.title)) : undefined} onOpen={onOpen} onAction={onAction} onMenu={onMenu} />
           ))}
         </section>
       ))}

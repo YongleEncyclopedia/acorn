@@ -58,7 +58,12 @@ export interface MarkFilter {
   view?: EntryView;
   feedId?: number;
   folderId?: number;
+  /** Only entries at or before this time (mark what is more than N days old). */
   before?: number;
+  /** Only this entry and everything listed after it: older, in the order lists use (time, then id). */
+  upTo?: number;
+  /** Only what is listed before this entry: newer, in the same order. */
+  newerThan?: number;
 }
 
 const SUMMARY_COLS = `e.id, e.feed_id, e.guid, e.url, e.title, e.author, e.summary, e.image, e.published_at, e.created_at,
@@ -88,6 +93,12 @@ export function toSummary(r: EntryRow): EntrySummary {
 
 const DAY = 86_400_000;
 
+/**
+ * "Reading in progress": started, not finished. Migration 004 has a partial index with exactly this condition,
+ * and SQLite only uses it while the two match literally (tests/server.test.ts checks the query plans).
+ */
+export const inProgress = (col = "progress"): string => `${col} > 0.02 and ${col} < 0.97`;
+
 function viewSort(view: EntryView | undefined): { expr: string; join: string } {
   switch (view) {
     case "starred":
@@ -99,6 +110,50 @@ function viewSort(view: EntryView | undefined): { expr: string; join: string } {
     default:
       return { expr: "e.sort_at", join: "" };
   }
+}
+
+/** The list query for a view / feed / folder; the caller appends the row limit as the last parameter. */
+export function listSql(q: ListQuery): { sql: string; params: Param[] } {
+  const { expr, join } = viewSort(q.view);
+  const where: string[] = [];
+  const params: Param[] = [];
+  if (q.view === "unread" || q.unreadOnly) where.push("e.read_at is null");
+  if (q.view === "today") {
+    where.push("e.sort_at >= ?");
+    params.push(Date.now() - DAY);
+  }
+  if (q.view === "starred") where.push("e.starred_at is not null");
+  if (q.view === "progress") where.push(inProgress("e.progress"));
+  if (q.feedId) {
+    where.push("e.feed_id = ?");
+    params.push(q.feedId);
+  }
+  if (q.folderId) {
+    where.push("e.feed_id in (select id from feeds where folder_id = ?)");
+    params.push(q.folderId);
+  }
+  if (q.q?.trim()) {
+    const fts = ftsQuery(q.q);
+    if (fts) {
+      where.push("e.id in (select rowid from entries_fts where entries_fts match ?)");
+      params.push(fts);
+    } else {
+      where.push("(e.title like ? escape '\\' or e.summary like ? escape '\\')");
+      params.push(likePattern(q.q), likePattern(q.q));
+    }
+  }
+  const asc = q.order === "old";
+  if (q.cursor) {
+    const [k, id] = q.cursor.split(":").map(Number);
+    if (Number.isFinite(k) && Number.isFinite(id)) {
+      where.push(asc ? `(${expr} > ? or (${expr} = ? and e.id > ?))` : `(${expr} < ? or (${expr} = ? and e.id < ?))`);
+      params.push(k, k, id);
+    }
+  }
+  const sql = `select ${SUMMARY_COLS}, ${expr} as k from entries e ${join}
+      ${where.length ? `where ${where.join(" and ")}` : ""}
+      order by k ${asc ? "asc" : "desc"}, e.id ${asc ? "asc" : "desc"} limit ?`;
+  return { sql, params };
 }
 
 export class EntryStore {
@@ -185,45 +240,7 @@ export class EntryStore {
 
   list(q: ListQuery): Page<EntrySummary> {
     const limit = Math.min(Math.max(q.limit || 40, 1), 200);
-    const { expr, join } = viewSort(q.view);
-    const where: string[] = [];
-    const params: Param[] = [];
-    if (q.view === "unread" || q.unreadOnly) where.push("e.read_at is null");
-    if (q.view === "today") {
-      where.push("e.sort_at >= ?");
-      params.push(Date.now() - DAY);
-    }
-    if (q.view === "starred") where.push("e.starred_at is not null");
-    if (q.view === "progress") where.push("e.progress > 0.02 and e.progress < 0.97");
-    if (q.feedId) {
-      where.push("e.feed_id = ?");
-      params.push(q.feedId);
-    }
-    if (q.folderId) {
-      where.push("e.feed_id in (select id from feeds where folder_id = ?)");
-      params.push(q.folderId);
-    }
-    if (q.q?.trim()) {
-      const fts = ftsQuery(q.q);
-      if (fts) {
-        where.push("e.id in (select rowid from entries_fts where entries_fts match ?)");
-        params.push(fts);
-      } else {
-        where.push("(e.title like ? escape '\\' or e.summary like ? escape '\\')");
-        params.push(likePattern(q.q), likePattern(q.q));
-      }
-    }
-    const asc = q.order === "old";
-    if (q.cursor) {
-      const [k, id] = q.cursor.split(":").map(Number);
-      if (Number.isFinite(k) && Number.isFinite(id)) {
-        where.push(asc ? `(${expr} > ? or (${expr} = ? and e.id > ?))` : `(${expr} < ? or (${expr} = ? and e.id < ?))`);
-        params.push(k, k, id);
-      }
-    }
-    const sql = `select ${SUMMARY_COLS}, ${expr} as k from entries e ${join}
-      ${where.length ? `where ${where.join(" and ")}` : ""}
-      order by k ${asc ? "asc" : "desc"}, e.id ${asc ? "asc" : "desc"} limit ?`;
+    const { sql, params } = listSql(q);
     const rows = this.db.all<EntryRow & { k: number }>(sql, ...params, limit + 1);
     const more = rows.length > limit;
     const page = rows.slice(0, limit);
@@ -289,6 +306,18 @@ export class EntryStore {
     if (filter.before) {
       where.push("sort_at <= ?");
       params.push(filter.before);
+    }
+    // "Up to this entry" and "newer than this entry" are positions in a list, not times: a page of notices
+    // scraped with dates only puts a whole day at the same instant, and the id is what orders those.
+    for (const [id, older] of [
+      [filter.upTo, true],
+      [filter.newerThan, false],
+    ] as const) {
+      if (!id) continue;
+      const at = this.db.get<{ sort_at: number }>("select sort_at from entries where id = ?", id)?.sort_at;
+      if (at === undefined) return 0;
+      where.push(older ? "(sort_at < ? or (sort_at = ? and id <= ?))" : "(sort_at > ? or (sort_at = ? and id > ?))");
+      params.push(at, at, id);
     }
     return this.db.run(`update entries set read_at = ? where ${where.join(" and ")}`, Date.now(), ...params).changes;
   }

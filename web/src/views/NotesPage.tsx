@@ -6,6 +6,7 @@ import { Layout } from "./Layout.tsx";
 import { api } from "../lib/api.ts";
 import { fullDate, relTime } from "../lib/format.ts";
 import { toast, toastError, ui } from "../lib/store.ts";
+import { useDocumentTitle } from "../lib/shell.ts";
 import { Empty } from "../components/Empty.tsx";
 import type { Highlight } from "../../../src/shared/types.ts";
 
@@ -48,6 +49,7 @@ async function exportMarkdown(): Promise<void> {
 export function NotesPage() {
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
+  useDocumentTitle("批注");
   useEffect(() => {
     const t = window.setTimeout(() => setDebounced(q.trim()), 250);
     return () => window.clearTimeout(t);
@@ -80,8 +82,8 @@ export function NotesPage() {
 
   return (
     <Layout mode="wide">
-      <main className="pane wide-pane scroll" style={{ overflowY: "auto" }}>
-        <header className="pane-head" style={{ background: "transparent", backdropFilter: "none" }}>
+      <main className="pane wide-pane scroll">
+        <header className="pane-head wide-head">
           <button className="icon-btn menu-btn" onClick={() => ui.set({ drawer: true })} aria-label="打开导航">
             <MenuIcon size={20} />
           </button>

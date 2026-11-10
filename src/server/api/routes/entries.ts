@@ -85,6 +85,8 @@ export function registerEntries(r: Hono, app: App): void {
         feedId: z.number().int().optional(),
         folderId: z.number().int().optional(),
         before: z.number().optional(),
+        upTo: z.number().int().optional(),
+        newerThan: z.number().int().optional(),
       })
       .parse(await c.req.json());
     const n = body.read === false && body.ids ? app.entries.setRead(body.ids, false) : app.entries.markRead(body);

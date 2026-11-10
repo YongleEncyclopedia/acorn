@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { compress } from "hono/compress";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -55,6 +56,11 @@ export function createHttp(app: App, hooks: Hooks = {}): Hono {
     log.error(`${c.req.method} ${c.req.path}`, err);
     return c.json({ error: "server_error", message: err.message }, 500);
   });
+
+  // gzip text responses: the app bundle, its font stylesheet and article JSON shrink to about a third, which is
+  // what a phone on Tailscale or a slow Wi-Fi waits for. The event stream, images and ZIP exports are left alone
+  // (the middleware only touches compressible content types).
+  r.use("*", compress());
 
   r.use("*", async (c, next) => {
     await next();

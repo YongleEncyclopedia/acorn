@@ -110,7 +110,7 @@ export const api = {
   entry: (id: number) => get<Entry>(`/api/entries/${id}`),
   patchEntry: (id: number, body: { read?: boolean; starred?: boolean; progress?: number }) => patch<EntrySummary>(`/api/entries/${id}`, body),
   fulltext: (id: number) => post<{ ok: boolean; error?: string; entry: Entry }>(`/api/entries/${id}/fulltext`),
-  mark: (body: { ids?: number[]; read?: boolean; view?: EntryView; feedId?: number; folderId?: number; before?: number }) =>
+  mark: (body: { ids?: number[]; read?: boolean; view?: EntryView; feedId?: number; folderId?: number; before?: number; upTo?: number; newerThan?: number }) =>
     post<{ changed: number; counts: Counts }>("/api/entries/mark", body),
 
   preview: (input: string, kind?: FeedKind, config?: FeedConfig) => post<FeedPreview>("/api/feeds/preview", { input, kind, config }),

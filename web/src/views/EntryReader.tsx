@@ -3,9 +3,9 @@ import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  ArrowRight,
   Bookmark,
   BookmarkCheck,
-  Check,
   CircleDot,
   Copy,
   ExternalLink,
@@ -13,7 +13,10 @@ import {
   Globe,
   Highlighter,
   Languages,
+  ListTree,
   MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
   RotateCw,
   Settings2,
   Share2,
@@ -23,15 +26,18 @@ import {
 } from "lucide-react";
 import { api } from "../lib/api.ts";
 import { keys, useBootstrap, useEntry, useEntryActions } from "../lib/queries.ts";
-import { fullDate, hostname, readingTime } from "../lib/format.ts";
+import { fullDate, hostname, readingTime, timeLeft } from "../lib/format.ts";
 import { readerStyle } from "../lib/theme.ts";
 import { toast, toastError, ui } from "../lib/store.ts";
 import { useMobile } from "../lib/useMedia.ts";
 import { useHotkeys } from "../lib/hotkeys.ts";
+import { layerOpen } from "../lib/layers.ts";
+import { pageBy, useDocumentTitle, useFocusMode } from "../lib/shell.ts";
 import { Popover, Menu, useAnchor, type MenuItem } from "../components/Popover.tsx";
 import { Seal } from "../components/Seal.tsx";
 import { Empty } from "../components/Empty.tsx";
-import { ArticleView, type ArticleHandle } from "./ArticleView.tsx";
+import { ArticleView, type ArticleHandle, type OutlineItem } from "./ArticleView.tsx";
+import { OUTLINE_MIN, OutlineRail, headingLabel, jumpToHeading, useActiveHeading } from "../components/Outline.tsx";
 import { TranslateStatus } from "../components/TranslateStatus.tsx";
 import { SummaryCard, useSummary } from "../components/SummaryCard.tsx";
 import { useReaderTranslation } from "../lib/translate.ts";
@@ -92,6 +98,10 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
   const prefsMenu = useAnchor();
   const sealMenu = useAnchor();
   const moreMenu = useAnchor();
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [outline, setOutline] = useState<OutlineItem[]>([]);
+  const activeHeading = useActiveHeading(outline, scrollRef, mobile);
+  const [focus, toggleFocus] = useFocusMode();
   const restored = useRef<number | null>(null);
   const lastSaved = useRef(0);
   const saveTimer = useRef(0);
@@ -102,6 +112,7 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
   const trCfg = boot.data?.settings.translate;
   const tr = useReaderTranslation(article, { id: `entry:${id}`, html, title: entry?.title || "", cfg: trCfg });
   const tldr = useSummary({ entryId: id }, `${id}:${html.length}`, !!html);
+  useDocumentTitle(entry?.title);
 
   // reset per entry
   useEffect(() => {
@@ -114,6 +125,15 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
     if (!mobile && scrollRef.current) scrollRef.current.scrollTop = 0;
     if (mobile) window.scrollTo(0, 0);
   }, [id, mobile]);
+
+  // Give the keyboard to the article once it is there, so the arrows, Page Up / Down, Home and End scroll it
+  // without a click first. Not while something else is being typed into or sits on top.
+  useEffect(() => {
+    const at = document.activeElement;
+    if (!entry || mobile || layerOpen() || (at && /^(INPUT|TEXTAREA|SELECT)$/.test(at.tagName))) return;
+    scrollRef.current?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry?.id, mobile]);
 
   // mark as read on open
   useEffect(() => {
@@ -190,6 +210,11 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
   const toggleStar = () => entry && setStar.mutate({ entry, starred: !entry.starredAt });
   const openOriginal = () => entry?.url && window.open(entry.url, "_blank", "noopener,noreferrer");
 
+  /** Space: a screenful down, and on to the next article once this one has run out. Shift+Space: back up. */
+  const page = (dir: 1 | -1) => {
+    if (!pageBy(mobile ? null : scrollRef.current, dir) && next) onNext();
+  };
+
   useHotkeys(
     {
       s: toggleStar,
@@ -200,6 +225,9 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
       h: () => ui.set((s) => ({ notesPanel: !s.notesPanel })),
       t: tr.toggle,
       i: tldr.toggle,
+      z: () => !mobile && toggleFocus(),
+      space: () => page(1),
+      "shift+space": () => page(-1),
       Escape: () => (notesOpen ? ui.set({ notesPanel: false }) : onBack()),
     },
     !!entry,
@@ -236,20 +264,29 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
     { label: entry.readAt ? "标为未读" : "标为已读", icon: <CircleDot size={15} />, hint: "M", onSelect: () => setRead.mutate({ entry, read: !entry.readAt }) },
     { label: "复制链接", icon: <Copy size={15} />, onSelect: () => navigator.clipboard?.writeText(entry.url || "").then(() => toast("已复制链接")) },
     ...(typeof navigator.share === "function" && entry.url ? [{ label: "分享…", icon: <Share2 size={15} />, onSelect: () => navigator.share({ title: entry.title, url: entry.url! }).catch(() => undefined) }] : []),
+    // a phone has no room for the outline rail; it lives in this menu instead
+    ...(mobile && outline.length >= OUTLINE_MIN ? [{ label: "目录", icon: <ListTree size={15} />, onSelect: () => setOutlineOpen(true) }] : []),
     "sep",
     { label: "订阅源设置", icon: <Settings2 size={15} />, onSelect: () => navigate(`/sources?edit=${entry.feedId}`) },
   ];
+  const left = timeLeft(entry.wordCount, progress);
 
   const highlights: Highlight[] = entry.highlights;
 
   return (
     <>
       <div className={`reader-bar ${progress > 0.004 ? "scrolled" : ""} ${barHidden && mobile ? "hidden" : ""}`}>
-        <button className="icon-btn back" onClick={onBack} aria-label="返回">
+        <button className="icon-btn back" onClick={onBack} title="返回列表（Esc）" aria-label="返回列表">
           <ArrowLeft size={20} />
         </button>
+        {!mobile && (
+          <button className="icon-btn" onClick={toggleFocus} title={focus ? "显示侧栏和列表（Z）" : "专注阅读（Z）"} aria-label={focus ? "显示侧栏和列表" : "专注阅读"}>
+            {focus ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
+        )}
         <div className="src">
           <span>{feed?.title}</span>
+          {left && <span className="left">· {left}</span>}
         </div>
         <span className="spacer" />
         {!mobile && (
@@ -260,21 +297,24 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
             <button ref={sealMenu.ref} className="icon-btn" onClick={sealMenu.toggle} title="入藏（A）" aria-label="入藏">
               <Seal size="xs" muted={!archived} />
             </button>
+            <i className="bar-sep" />
             <button className="icon-btn" onClick={loadFull} aria-pressed={entry.hasFullContent && !showFeed} title={entry.hasFullContent ? (showFeed ? "显示全文（F）" : "显示订阅源原始内容（F）") : "抓取全文（F）"} aria-label="全文">
               {loadingFull ? <span className="spinner" /> : <FileText size={18} />}
-            </button>
-            <button className="icon-btn" onClick={() => ui.set((s) => ({ notesPanel: !s.notesPanel }))} aria-pressed={notesOpen} title="批注（H）" aria-label="批注">
-              <Highlighter size={18} />
-            </button>
-            <button className="icon-btn" onClick={tldr.toggle} aria-pressed={!!tldr.data && tldr.open} title="要点（I）" aria-label="要点">
-              {tldr.busy ? <span className="spinner" /> : <Sparkles size={18} />}
             </button>
             <button className="icon-btn" onClick={tr.toggle} aria-pressed={tr.on} title="翻译（T）" aria-label="翻译">
               {tr.pending ? <span className="spinner" /> : <Languages size={18} />}
             </button>
+            <button className="icon-btn" onClick={tldr.toggle} aria-pressed={!!tldr.data && tldr.open} title="要点（I）" aria-label="要点">
+              {tldr.busy ? <span className="spinner" /> : <Sparkles size={18} />}
+            </button>
+            <i className="bar-sep" />
+            <button className="icon-btn" onClick={() => ui.set((s) => ({ notesPanel: !s.notesPanel }))} aria-pressed={notesOpen} title="批注（H）" aria-label="批注">
+              <Highlighter size={18} />
+            </button>
             <button ref={prefsMenu.ref} className="icon-btn" onClick={prefsMenu.toggle} title="阅读设置" aria-label="阅读设置">
               <Type size={18} />
             </button>
+            <i className="bar-sep" />
             <button className="icon-btn" onClick={openOriginal} disabled={!entry.url} title="打开原文（V）" aria-label="打开原文">
               <ExternalLink size={18} />
             </button>
@@ -286,7 +326,7 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
         <div className="read-progress" style={{ width: `${progress * 100}%` }} />
       </div>
 
-      <div ref={scrollRef} className="reader-scroll scroll">
+      <div ref={scrollRef} className="reader-scroll scroll" tabIndex={-1}>
         <div className="article-wrap" style={readerStyle(prefs)}>
           {gone && (
             <div className="reader-banner lost">
@@ -343,7 +383,7 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
           </header>
           <SummaryCard s={tldr} />
           <TranslateStatus tr={tr} cfg={trCfg} />
-          <ArticleView ref={article} html={html} highlights={highlights} target={{ entryId: entry.id }} prefs={prefs} translation={tr.shown} onChanged={refreshEntry} />
+          <ArticleView ref={article} html={html} highlights={highlights} target={{ entryId: entry.id }} prefs={prefs} translation={tr.shown} onChanged={refreshEntry} onOutline={setOutline} />
           <ArticleEnd entry={entry} next={next} onNext={onNext} onStar={toggleStar} onArchive={() => capture("fetch")} />
         </div>
       </div>
@@ -396,6 +436,12 @@ export function EntryReader({ id, next, onBack, onNext }: { id: number; next: En
           <Menu items={moreItems} onClose={moreMenu.close} />
         </Popover>
       )}
+      {outlineOpen && (
+        <Popover anchor={moreMenu.el} onClose={() => setOutlineOpen(false)} className="outline-menu scroll" label="目录">
+          <Menu onClose={() => setOutlineOpen(false)} items={outline.map((h, i) => ({ label: headingLabel(h), depth: h.depth, checked: i === activeHeading, onSelect: () => jumpToHeading(h) }))} />
+        </Popover>
+      )}
+      {!mobile && <OutlineRail items={outline} active={activeHeading} />}
       {notesOpen && <NotesPanel highlights={highlights} onPick={(hid) => article.current?.flash(hid)} />}
     </>
   );
@@ -429,7 +475,7 @@ function ArticleEnd({ entry, next, onNext, onStar, onArchive }: { entry: Entry; 
             <div className="k">下一篇 · J</div>
             <div className="t">{next.title}</div>
           </div>
-          <Check size={18} style={{ opacity: 0 }} />
+          <ArrowRight size={18} className="go" />
         </button>
       )}
     </div>

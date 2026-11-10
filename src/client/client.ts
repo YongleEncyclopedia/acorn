@@ -122,7 +122,8 @@ export function createClient(baseUrl = defaultBaseUrl(), token = defaultToken())
     entry: (id: number) => call<Entry>("GET", `/api/entries/${id}`),
     patchEntry: (id: number, body: { read?: boolean; starred?: boolean; progress?: number }) => call<EntrySummary>("PATCH", `/api/entries/${id}`, body),
     fulltext: (id: number) => call<{ ok: boolean; error?: string; entry: Entry }>("POST", `/api/entries/${id}/fulltext`),
-    mark: (body: { ids?: number[]; read?: boolean; feedId?: number; view?: EntryView }) => call<{ changed: number }>("POST", "/api/entries/mark", body),
+    mark: (body: { ids?: number[]; read?: boolean; feedId?: number; folderId?: number; view?: EntryView; before?: number; upTo?: number; newerThan?: number }) =>
+      call<{ changed: number }>("POST", "/api/entries/mark", body),
     search: (q: string) => call<SearchResults>("GET", `/api/search${qs({ q })}`),
     capture: (body: { url?: string; entryId?: number; method?: "fetch" | "browser"; tags?: string[]; title?: string }) =>
       call<{ archiveId: number; created: boolean; unchanged: boolean; warnings: string[]; title: string; gone: string | null }>("POST", "/api/archives", { ...body, wait: true }),

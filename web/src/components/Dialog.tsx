@@ -1,6 +1,7 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { useFocusTrap, useLayer } from "../lib/layers.ts";
 
 export function Dialog({
   title,
@@ -17,22 +18,23 @@ export function Dialog({
   size?: "sm" | "lg";
   icon?: ReactNode;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useLayer(onClose);
+  useFocusTrap(ref);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [onClose]);
+  }, []);
   return createPortal(
     <div className="scrim" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`dialog ${size || ""}`} role="dialog" aria-modal="true">
+      <div ref={ref} className={`dialog ${size || ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <div className="dialog-head">
           {icon}
-          <h2>{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           <button className="icon-btn sm" onClick={onClose} aria-label="关闭">
             <X size={18} />
           </button>
