@@ -262,20 +262,87 @@ export interface BackupStatus {
 
 export type TranslateProvider = "ollama" | "openai" | "anthropic";
 
+/**
+ * How hard the model may think before answering. "auto" lets Acorn choose: translation and key points need no deep
+ * reasoning, so it is switched off where the model allows that, and kept at the lowest level where it does not.
+ * "on" switches reasoning on at the service's own default depth (models with an on/off switch and no levels).
+ */
+export type ReasoningChoice = "auto" | "off" | "on" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+
 export interface TranslateSettings {
-  /** ollama = local models; openai = any OpenAI-compatible API (DeepSeek, Qwen, OpenRouter…); anthropic = Claude. */
+  /** The protocol: ollama = local models; openai = any OpenAI-compatible API (DeepSeek, Qwen, OpenRouter…); anthropic = Claude. */
   provider: TranslateProvider;
+  /** Which service, from src/shared/ai.ts (`deepseek`, `openrouter`, `custom`…): how it steers reasoning, where its catalog is. */
+  preset: string;
   /** API root; empty = the provider's default. */
   baseUrl: string;
   model: string;
   /** Sent to clients masked; patching with the masked value keeps the stored key. */
   apiKey: string;
+  reasoning: ReasoningChoice;
+  /** The model's context window in tokens, pinned by the user; 0 = detect it. */
+  contextLength: number;
+  /** Extra fields merged into every request body, as a JSON object (for services with parameters of their own). */
+  extraBody: string;
   targetLang: string;
   /** Translate foreign-language articles as soon as they are opened. */
   auto: boolean;
   /** Show translated titles under foreign-language titles in article lists. */
   titles: boolean;
   display: "bilingual" | "only";
+}
+
+/** How a model lets its reasoning be steered, as far as Acorn knows. */
+export interface ReasoningSpec {
+  /** Has an on/off switch of its own (DeepSeek's `thinking`, Qwen's `enable_thinking`, Ollama's `think: false`…). */
+  toggle: boolean;
+  /** The levels it accepts, cheapest first. "none" among them switches reasoning off. */
+  efforts: ("none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[];
+  /** Takes a token budget for its reasoning. */
+  budget: { min?: number; max?: number } | null;
+}
+
+/** One model a service offers, with what Acorn could find out about it. */
+export interface ModelInfo {
+  id: string;
+  name?: string;
+  /** The context window in tokens: input and output together. */
+  context?: number;
+  maxOutput?: number;
+  /** false: the model does not reason. null: nobody says. */
+  reasoning: ReasoningSpec | false | null;
+  /** false: the model rejects a temperature (OpenAI's reasoning models, current Claude models, Kimi K3). */
+  temperature?: boolean;
+  /** US dollars per million tokens. */
+  price?: { input: number; output: number };
+  /** Local models: parameter count, quantization, size on disk. */
+  detail?: string;
+  /** Where its capabilities came from: the service itself, or the models.dev catalog. */
+  source?: "service" | "catalog";
+}
+
+export interface ModelList {
+  models: ModelInfo[];
+  /** service: the list the service gave; catalog: the service gave none, these are the ones models.dev knows. */
+  source: "service" | "catalog" | "none";
+  /** Why the service could not be asked (wrong key, not running…). */
+  error?: string;
+}
+
+/** The result of trying a configuration on one sentence. */
+export interface ModelTest {
+  ok: boolean;
+  text?: string;
+  error?: string;
+  ms: number;
+  model?: string;
+  /** Whether the model reasoned before answering, and how many tokens that took when the service says. */
+  reasoned?: boolean;
+  reasoningTokens?: number;
+  /** The reasoning fields that were sent, as the service received them. */
+  sent?: Record<string, unknown>;
+  /** What Acorn found out about the model. */
+  info?: ModelInfo | null;
 }
 
 /** Key points of an article, written by the translation model. */

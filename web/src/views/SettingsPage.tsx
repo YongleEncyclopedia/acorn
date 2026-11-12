@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Download, HardDrive, KeyRound, LogOut, Menu as MenuIcon, Plus, Rss, ScrollText, Send, Smartphone, Trash2 } from "lucide-react";
 import { Layout } from "./Layout.tsx";
+import { AiSettings } from "./AiSettings.tsx";
 import { FontPicker, ThemePicker, usePrefs } from "./ReaderPrefs.tsx";
 import { api } from "../lib/api.ts";
 import { keys, useBootstrap } from "../lib/queries.ts";
@@ -15,8 +16,7 @@ import { Seal } from "../components/Seal.tsx";
 import { PhoneLogin } from "../components/PhoneLogin.tsx";
 import { ShortcutList } from "../components/Shortcuts.tsx";
 import { useDocumentTitle } from "../lib/shell.ts";
-import type { Bootstrap, Settings, Stats, TranslateSettings } from "../../../src/shared/types.ts";
-import { TARGET_LANGS } from "../../../src/shared/translate.ts";
+import type { Bootstrap, Settings, Stats } from "../../../src/shared/types.ts";
 
 const SAMPLE =
   "松鼠秋天会把橡果一颗颗埋进土里，留到冬天慢慢吃。它记不住每一处，于是总有几颗在春天发了芽。读东西也是这样：先收好，再慢慢消化，偶尔会长出新的东西。";
@@ -105,142 +105,6 @@ function Tokens() {
         </Dialog>
       )}
     </>
-  );
-}
-
-const ENGINES: { id: string; label: string; provider: TranslateSettings["provider"]; baseUrl: string; model: string; hint: string }[] = [
-  { id: "ollama", label: "本机 Ollama", provider: "ollama", baseUrl: "", model: "qwen3:8b", hint: "免费、离线，文章不出这台电脑。先装 Ollama 并下载模型，例如 ollama pull qwen3:8b" },
-  { id: "deepseek", label: "DeepSeek", provider: "openai", baseUrl: "https://api.deepseek.com", model: "deepseek-chat", hint: "便宜、中文好。API Key 在 platform.deepseek.com 申请" },
-  { id: "qwen", label: "通义千问", provider: "openai", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus", hint: "阿里云百炼的 OpenAI 兼容接口" },
-  { id: "openai", label: "OpenAI", provider: "openai", baseUrl: "https://api.openai.com/v1", model: "", hint: "填你账号可用的模型名" },
-  { id: "claude", label: "Claude", provider: "anthropic", baseUrl: "", model: "claude-haiku-5-5", hint: "Anthropic 的 Messages API" },
-  { id: "custom", label: "其他 OpenAI 兼容接口", provider: "openai", baseUrl: "", model: "", hint: "OpenRouter、硅基流动、LM Studio 等，填它们的 /v1 地址" },
-];
-
-const engineOf = (t: TranslateSettings) =>
-  ENGINES.find((e) => e.provider === t.provider && e.id !== "custom" && (e.baseUrl === t.baseUrl || (!e.baseUrl && !t.baseUrl))) || ENGINES.find((e) => e.id === "custom")!;
-
-/** Machine translation: a local model through Ollama, or a cloud API. */
-function Translate({ s, save }: { s: Settings; save: (patch: Partial<Settings>) => Promise<void> }) {
-  const cfg = s.translate;
-  const [draft, setDraft] = useState<Pick<TranslateSettings, "provider" | "baseUrl" | "model" | "apiKey"> | null>(null);
-  const [test, setTest] = useState<{ ok: boolean; text?: string; error?: string; ms: number } | null>(null);
-  const [testing, setTesting] = useState(false);
-  const cur = { ...cfg, ...(draft || {}) };
-  const engine = engineOf(cur);
-  const models = useQuery({ queryKey: ["translate-models", cfg.provider, cfg.baseUrl, cfg.apiKey], queryFn: api.translateModels, staleTime: 60_000 });
-  const edit = (patch: Partial<TranslateSettings>) => {
-    setDraft({ provider: cur.provider, baseUrl: cur.baseUrl, model: cur.model, apiKey: cur.apiKey, ...patch });
-    setTest(null);
-  };
-  const pick = (id: string) => {
-    const e = ENGINES.find((x) => x.id === id)!;
-    edit({ provider: e.provider, baseUrl: e.baseUrl, model: e.model, apiKey: e.provider === cfg.provider && e.baseUrl === cfg.baseUrl ? cfg.apiKey : "" });
-  };
-  const runTest = async () => {
-    setTesting(true);
-    try {
-      if (draft) {
-        await save({ translate: { ...cfg, ...draft } });
-        setDraft(null);
-      }
-      setTest(await api.translateTest());
-    } catch (e) {
-      toastError(e);
-    } finally {
-      setTesting(false);
-    }
-  };
-  return (
-    <section className="settings-section" id="translate">
-      <h2>翻译与要点</h2>
-      <div className="settings-card">
-        <div className="setting-row stack">
-          <div className="txt">
-            <b>模型</b>
-            <span>翻译和「要点」都用这个模型。{engine.hint}</span>
-          </div>
-          <select className="field" value={engine.id} onChange={(e) => pick(e.target.value)}>
-            {ENGINES.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.label}
-              </option>
-            ))}
-          </select>
-          {(engine.id === "custom" || engine.provider === "ollama") && (
-            <input className="field mono" placeholder={engine.provider === "ollama" ? "http://127.0.0.1:11434" : "https://…/v1"} value={cur.baseUrl} onChange={(e) => edit({ baseUrl: e.target.value })} />
-          )}
-          <input className="field mono" list="translate-models" placeholder="模型名" value={cur.model} onChange={(e) => edit({ model: e.target.value })} />
-          <datalist id="translate-models">
-            {(models.data?.models || []).map((m) => (
-              <option key={m} value={m} />
-            ))}
-          </datalist>
-          {cur.provider !== "ollama" && (
-            <input className="field mono" type="password" autoComplete="off" placeholder="API Key" value={cur.apiKey} onChange={(e) => edit({ apiKey: e.target.value })} />
-          )}
-          <div className="bridge-status">
-            {test ? (
-              test.ok ? (
-                <span>
-                  {(test.ms / 1000).toFixed(1)} 秒 · {test.text}
-                </span>
-              ) : (
-                <span className="bad">{test.error}</span>
-              )
-            ) : (
-              <span className="muted">{draft ? "改动还没保存" : "保存后可以测试一下"}</span>
-            )}
-            <span className="grow" />
-            <button className="btn sm ghost" disabled={testing} onClick={runTest}>
-              {testing ? "测试中…" : "测试"}
-            </button>
-            <button className="btn sm" disabled={!draft} onClick={() => save({ translate: { ...cfg, ...draft! } }).then(() => (setDraft(null), toast("已保存")))}>
-              保存
-            </button>
-          </div>
-        </div>
-        <div className="setting-row">
-          <div className="txt">
-            <b>译成</b>
-          </div>
-          <select className="field" style={{ width: 140 }} value={cfg.targetLang} onChange={(e) => save({ translate: { ...cfg, targetLang: e.target.value } })}>
-            {TARGET_LANGS.map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="setting-row">
-          <div className="txt">
-            <b>外文文章自动翻译</b>
-            <span>打开外文文章就开始翻译；关掉时点阅读栏的「译」按钮（快捷键 T）</span>
-          </div>
-          <Switch checked={cfg.auto} onChange={(v) => save({ translate: { ...cfg, auto: v } })} />
-        </div>
-        <div className="setting-row">
-          <div className="txt">
-            <b>翻译列表里的外文标题</b>
-            <span>标题下面多一行译文，扫一眼就知道值不值得点开；新文章刷新时就先译好</span>
-          </div>
-          <Switch checked={cfg.titles} onChange={(v) => save({ translate: { ...cfg, titles: v } })} />
-        </div>
-        <div className="setting-row">
-          <div className="txt">
-            <b>显示方式</b>
-          </div>
-          <Segmented
-            value={cfg.display}
-            options={[
-              { value: "bilingual", label: "双语对照" },
-              { value: "only", label: "只看译文" },
-            ]}
-            onChange={(v) => save({ translate: { ...cfg, display: v } })}
-          />
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -730,7 +594,7 @@ export function SettingsPage() {
             </div>
           </section>
 
-          <Translate s={s} save={save} />
+          <AiSettings s={s} save={save} />
 
           <WechatBridge s={s} save={save} />
 

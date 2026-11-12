@@ -15,7 +15,7 @@
 - **入藏**：一键（或标星、批注时自动）把正文、图片、附件、原始网页存到你自己的硬盘；遇到公众号、小红书、知乎这类有登录或验证的网站，可以用你自己登录过的浏览器（ego-browser）入藏，连同整页快照 MHTML 和截图。
 - **搬家**：浏览器书签、Pocket、Instapaper、Raindrop、Readwise 的导出文件拖进来，里面的链接逐个入藏；原文已经 404 的，去 Internet Archive 找回当年的副本。
 - **盯着原文**：定期回访存档的原文，被删了就标出来，被改了就另存一个版本。
-- **翻译**：外文文章逐段双语对照，或只看译文；列表里的外文标题也能顺手译好。用本机模型（Ollama，免费、离线）或云端 API（DeepSeek、通义千问、OpenAI、Claude…）；译文缓存在本地，每台设备共享。
+- **翻译**：外文文章逐段双语对照，或只看译文；列表里的外文标题也能顺手译好。用本机模型（Ollama，免费、离线）或云端 API（DeepSeek、通义千问、Kimi、OpenRouter、OpenAI、Claude…）；选好服务就能列出它的模型，推理强度和上下文长度按模型配好；译文缓存在本地，每台设备共享。
 - **要点**：长文一键提炼 3–5 条要点（快捷键 I），和翻译用同一个模型，生成一次、各设备共享。
 - **批注**：高亮、写想法，导出 Markdown 直接进 Obsidian。
 - **键盘**：`J` `K` 翻篇、空格翻页，`⌘K` 搜索，或者直接输入订阅源的名字跳过去；按 `?` 看全部快捷键。
@@ -62,6 +62,7 @@ npm start          # 启动，默认 http://localhost:7700
 | `ACORN_PUBLIC_URL` | 摘要和通知里用的访问地址，比如 Tailscale 地址 | `http://localhost:7700` |
 | `RSSHUB_BASE` | RSSHub 实例 | `https://rsshub.app` |
 | `ACORN_WAYBACK_BASE` | 搬家时找回失效链接用的 Internet Archive 地址 | `https://web.archive.org` |
+| `ACORN_MODELS_CATALOG` | 模型目录（上下文、推理方式、价格），每天更新一次；设为空就不下载 | `https://models.dev/api.json` |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | 每日摘要 | 空 |
 
 ## 在各个设备上用
@@ -95,10 +96,16 @@ npm start          # 启动，默认 http://localhost:7700
 
 ## 翻译
 
-阅读栏的「译」按钮（快捷键 T）把当前文章逐段译成中文，译文排在原文下面；也可以切换成只看译文，或者在设置里打开「外文文章自动翻译」。在「设置 → 翻译」选择引擎：
+阅读栏的「译」按钮（快捷键 T）把当前文章逐段译成中文，译文排在原文下面；也可以切换成只看译文，或者在设置里打开「外文文章自动翻译」。在「设置 → 翻译与要点」选一个 AI 服务：
 
-- **本机模型**：装好 [Ollama](https://ollama.com) 后下载一个模型，比如 `ollama pull qwen3:8b`（约 5 GB，16 GB 内存的电脑就能跑）或 `qwen3:14b`（约 9 GB，译文更好）。文章不离开你的电脑。松果在 Docker 里运行时，地址填 `http://host.docker.internal:11434`。
-- **云端 API**：DeepSeek、通义千问、OpenAI、Claude，或任何 OpenAI 兼容接口（OpenRouter、硅基流动、LM Studio…）。填 API Key 即可，按量付费，文章会发给服务商。
+- **本机模型**：装好 [Ollama](https://ollama.com) 后下载一个模型，比如 `ollama pull qwen3:8b`（约 5 GB，16 GB 内存的电脑就能跑）或 `qwen3:14b`（约 9 GB，译文更好）。文章不离开你的电脑。松果在 Docker 里运行时，地址填 `http://host.docker.internal:11434`。LM Studio 也在列表里。
+- **云端 API**：DeepSeek、通义千问、Kimi、智谱 GLM、火山方舟（豆包）、硅基流动、OpenRouter、OpenAI、Claude、Gemini 都已列好，选一个、贴上 API Key 就行；其他 OpenAI 兼容接口（vLLM、One API、各种中转服务）填它们的 `/v1` 地址。按量付费，文章会发给服务商。
+
+填好之后不用先保存：松果直接去问这个服务有哪些模型，每个模型都标着上下文长度、能不能关掉推理、价格（服务自己不说的，从 [models.dev](https://models.dev) 的模型目录补上，和 Hermes Agent 用的是同一份）。
+
+- **推理强度**：默认「自动」——翻译和提炼要点用不着深度思考，能关掉推理的模型就关掉，关不掉的用最低一档，回答更快、更省钱。也可以手动选一档，松果会换成各家自己的参数（DeepSeek 的 `thinking`、通义的 `enable_thinking`、OpenRouter 的 `reasoning`、Claude 的 effort……）。
+- **上下文**：按模型自动设定，决定一次翻译多少段、「要点」能读多长的文章。本机 Ollama 默认按 8K 运行，省显存；想让要点读完长文，可以填 32K。
+- **测试**：用一句话试一遍还没保存的设置，看用了几秒、有没有推理。「高级」里可以给每个请求附加服务独有的参数（一个 JSON 对象）。
 
 译文按段落缓存在本地数据库里：同一段只翻一次，换台设备打开也不用再等。批注只能划在原文上，关掉翻译后依然在原处。
 

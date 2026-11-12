@@ -26,6 +26,8 @@ export interface Config {
   egoBrowserBin: string;
   /** Internet Archive (Wayback Machine) used to rescue dead links. */
   waybackBase: string;
+  /** The models.dev catalog of model capabilities (context windows, reasoning controls, prices); empty = do not use it. */
+  modelsCatalog: string;
   /** Disable background scheduler (tests, one-off CLI runs). */
   scheduler: boolean;
 }
@@ -56,6 +58,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     pageUserAgent: env.ACORN_PAGE_UA || BROWSER_UA,
     egoBrowserBin: env.ACORN_EGO_BROWSER || "ego-browser",
     waybackBase: (env.ACORN_WAYBACK_BASE || "https://web.archive.org").replace(/\/+$/, ""),
+    modelsCatalog: env.ACORN_MODELS_CATALOG ?? "https://models.dev/api.json",
     scheduler: env.ACORN_SCHEDULER !== "off",
     ...overrides,
   };
