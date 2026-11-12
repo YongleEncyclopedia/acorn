@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A light theme by day and a dark one at night (values-night): the WebView's prefers-color-scheme follows it,
+     and with it the reader's 自动 theme. The window background is also the splash screen's. -->
+<resources>
+    <style name="Theme.Acorn" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:colorBackground">@color/bg</item>
+        <item name="android:colorPrimary">@color/accent</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:colorControlActivated">@color/accent</item>
+        <item name="android:textColorHighlight">@color/accent_soft</item>
+    </style>
+</resources>

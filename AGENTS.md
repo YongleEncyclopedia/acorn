@@ -63,6 +63,11 @@ web/src/               React 19 + TanStack Query + wouter; views/*, components/*
   fonts.ts             the reading fonts, loaded as a separate stylesheet so they do not block the first paint
 plugins/               user plugins (TypeScript, hot-reloaded)
 tests/                 vitest; fixtures are real pages saved from the web
+android/               the Android app (Kotlin + WebView, its own Gradle build; built in CI, no SDK needed here):
+                       app/src/main/kotlin/…/MainActivity.kt (first run, WebView, downloads, file picker, share
+                       sheet, sign-in links), Address.kt (address → origins, the /api/health check, /capture links;
+                       unit tests in app/src/test), PageScript.kt (runs in the page: theme colour for the system bars,
+                       blob downloads, clipboard and share on plain http), icons/make-icons.mjs
 ```
 
 ## Common tasks
@@ -99,6 +104,13 @@ tests/                 vitest; fixtures are real pages saved from the web
 - **A list query gets slow** → `EntryStore.listSql` builds every list. The 未读 and 在读 lists rely on partial
   indexes (migration 004) that SQLite only uses while the query repeats the index's condition literally;
   `tests/server.test.ts` checks the query plans.
+- **Android app** → a client only: the web app in a WebView, on the address the user types or scans from the
+  「扫码在手机上登录」 QR code. It relies on `GET /api/health` staying public, `/login/<token>` and
+  `/capture?url=&title=`; reader changes happen in `web/src` as usual (the app identifies itself with
+  `AcornAndroid/<version>` in the user agent). `.github/workflows/android.yml` builds the APK with the Gradle
+  wrapper (`cd android && ./gradlew testReleaseUnitTest assembleRelease` with JDK 17 and an Android SDK): an artifact
+  on pull requests, the draft release on `v*` tags; release key from the `ANDROID_KEYSTORE_*` secrets, else a debug
+  key. After changing `web/public/icon.svg`, run `node android/icons/make-icons.mjs` (needs `npm install`).
 
 ## Data safety
 

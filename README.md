@@ -72,6 +72,30 @@ npm start          # 启动，默认 http://localhost:7700
 - **原生阅读器**：在 Reeder、NetNewsWire、Read You、Capy Reader、NewsFlash 里添加 FreshRSS / Google Reader API 账号，服务器填松果地址，用户名随意，密码填松果密码。在阅读器里加星标，松果会自动入藏。
 - **随手收藏**：设置页里有书签小工具；安卓可以从分享菜单直接分享给松果；iPhone 用快捷指令打开 `…/capture?url=`。
 
+### 安卓手机
+
+安卓上可以装松果的 App：全屏，没有浏览器的地址栏，分享菜单里直接「收进松果」，导出、导入文件都能用。它只是一个窗口，书库还在电脑或 NAS 上的松果里，那边的松果要开着。
+
+1. 在 [Releases](https://github.com/YongleEncyclopedia/acorn/releases) 下载 `Acorn-<版本>-android.apk`，在手机上打开它。
+2. 系统会说「出于安全考虑，已禁止安装来自此来源的应用」：点「设置」，打开「允许来自此来源的应用」（给下载它的浏览器或文件管理器），返回后点「安装」。小米、华为、OPPO、vivo 可能还要再确认一次，或者先关掉「纯净模式」「安全守护」之类的开关。
+3. 打开松果，二选一：
+   - **扫码登录**（推荐）：电脑上打开松果的「设置 → 多设备 → 扫码在手机上登录」，手机上点「扫码登录」扫一下，地址和登录一步完成。
+   - **填地址**：比如 `192.168.1.20`、`nas.local:7700` 或完整的 `https://…`。只填 IP 或名字时，默认是 `http://` 和端口 `7700`；连上后用松果的密码登录。
+
+手机要和电脑连着同一个 Wi-Fi；出门在外也想用，两边都装上 Tailscale，用 Tailscale 的地址（扫码时选「Tailscale」那个二维码）。以后要换地址或重新扫码，长按桌面上的松果图标。iPhone 和 iPad 没有 App，用 Safari 打开松果，再「添加到主屏幕」。
+
+App 的代码在 `android/`。推送 `v<版本>` 标签时，GitHub Actions 打出 APK 放进同一个草稿 Release；Pull Request 改了 `android/` 时，APK 在那次运行的 Artifacts 里（下载的是 zip，解压出 APK）。没有设置发布密钥时，APK 用一次性的调试密钥签名：能正常安装，但两次构建的密钥不同，装另一次构建前要先卸载（地址和登录要重来一遍）。想直接覆盖升级，生成一个发布密钥，存进仓库的 Secrets：
+
+```bash
+keytool -genkeypair -v -keystore acorn-release.jks -alias acorn -keyalg RSA -keysize 4096 -validity 10000
+```
+
+```bash
+base64 -i acorn-release.jks | gh secret set ANDROID_KEYSTORE_BASE64
+```
+
+再用 `gh secret set` 存 `ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`（上面是 `acorn`），密钥本身的密码不同的话还有 `ANDROID_KEY_PASSWORD`。密钥文件和密码自己保管好、别提交进仓库：换了密钥，装好的 App 也只能卸载重装。
+
 ## 消息源
 
 | 来源 | 怎么订阅 |

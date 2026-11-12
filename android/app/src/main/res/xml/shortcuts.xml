@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the app icon: change the address, or scan a sign-in code. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:icon="@drawable/shortcut_scan"
+        android:shortcutId="scan"
+        android:shortcutLongLabel="@string/shortcut_scan_long"
+        android:shortcutShortLabel="@string/shortcut_scan">
+        <intent
+            android:action="io.github.yongleencyclopedia.acorn.SCAN"
+            android:targetClass="io.github.yongleencyclopedia.acorn.MainActivity"
+            android:targetPackage="io.github.yongleencyclopedia.acorn" />
+    </shortcut>
+    <shortcut
+        android:icon="@drawable/shortcut_address"
+        android:shortcutId="address"
+        android:shortcutLongLabel="@string/shortcut_address_long"
+        android:shortcutShortLabel="@string/shortcut_address">
+        <intent
+            android:action="io.github.yongleencyclopedia.acorn.ADDRESS"
+            android:targetClass="io.github.yongleencyclopedia.acorn.MainActivity"
+            android:targetPackage="io.github.yongleencyclopedia.acorn" />
+    </shortcut>
+</shortcuts>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- First run, and 更换地址: where is 松果? -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/setup"
+    style="@style/Acorn.Panel"
+    android:fillViewport="true"
+    android:visibility="gone">
+
+    <LinearLayout style="@style/Acorn.Column">
+
+        <ImageView
+            android:layout_width="76dp"
+            android:layout_height="76dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/acorn_icon" />
+
+        <TextView
+            style="@style/Acorn.Title"
+            android:layout_marginTop="18dp"
+            android:text="@string/app_name" />
+
+        <TextView
+            style="@style/Acorn.Lede"
+            android:layout_marginTop="6dp"
+            android:text="@string/setup_lede" />
+
+        <EditText
+            android:id="@+id/address"
+            style="@style/Acorn.Field"
+            android:layout_marginTop="32dp"
+            android:hint="@string/setup_address_hint"
+            android:imeOptions="actionGo"
+            android:importantForAutofill="no"
+            android:inputType="textUri" />
+
+        <TextView
+            android:id="@+id/status"
+            style="@style/Acorn.Status"
+            android:layout_marginTop="10dp"
+            android:accessibilityLiveRegion="polite"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/connect"
+            style="@style/Acorn.Button.Primary"
+            android:layout_marginTop="16dp"
+            android:text="@string/setup_connect" />
+
+        <Button
+            android:id="@+id/scan"
+            style="@style/Acorn.Button"
+            android:layout_marginTop="10dp"
+            android:text="@string/setup_scan" />
+
+        <TextView
+            style="@style/Acorn.Hint"
+            android:layout_marginTop="22dp"
+            android:text="@string/setup_help" />
+
+        <Button
+            android:id="@+id/cancel"
+            style="@style/Acorn.Button.Quiet"
+            android:layout_marginTop="12dp"
+            android:text="@android:string/cancel"
+            android:visibility="gone" />
+    </LinearLayout>
+</ScrollView>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The page, and the two panels that cover it when there is no page to show. The root is padded for the system
+     bars and the keyboard (MainActivity), and its colour is the page's, so the bars sit on the page's colour. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <WebView
+        android:id="@+id/web"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <include layout="@layout/setup" />
+
+    <include layout="@layout/offline" />
+</FrameLayout>
