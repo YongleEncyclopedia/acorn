@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 松果 runs on the user's own computer or NAS and is reached over the LAN or Tailscale, by an IP address or a local
+     name, usually over plain http. The address is whatever the user types in, and this file cannot list address
+     ranges, so cleartext is allowed for any host. The app only ever loads that one address: MainActivity sends
+     every other site to the browser. User-installed CAs are trusted too, for a NAS behind a proxy with its own CA. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

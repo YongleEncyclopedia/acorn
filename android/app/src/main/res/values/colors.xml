@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The web app's paper theme (web/src/styles/tokens.css); values-night has its night theme. -->
+<resources>
+    <color name="bg">#F3EFE7</color>
+    <color name="bg_elev">#FAF7F1</color>
+    <color name="ink">#1F1B16</color>
+    <color name="ink_2">#57514A</color>
+    <color name="ink_3">#6F685B</color>
+    <color name="line_strong">#2E463219</color>
+    <color name="accent">#8A5A2B</color>
+    <color name="accent_soft">#1F8A5A2B</color>
+    <color name="accent_contrast">#FFFAF2</color>
+    <color name="danger">#B4372B</color>
+</resources>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">松果</string>
+
+    <string name="setup_lede">连接到运行松果的电脑或 NAS</string>
+    <string name="setup_address_hint">例如 192.168.1.20 或 nas.local</string>
+    <string name="setup_connect">连接</string>
+    <string name="setup_scan">扫码登录</string>
+    <string name="setup_help">在电脑上打开松果，「设置 → 多设备 → 扫码在手机上登录」会显示一个二维码：点上面的「扫码登录」扫一下，地址和登录一步完成。\n\n也可以直接填地址：只填 IP 或名字时，默认是 http:// 和端口 7700。手机要和电脑连着同一个 Wi-Fi；出门在外用 Tailscale 的地址。以后要换地址，长按桌面上的松果图标。</string>
+    <string name="connecting">正在连接 %1$s…</string>
+
+    <string name="error_not_address">这不像一个地址。可以填 192.168.1.20、nas.local:7700 或完整的网址。</string>
+    <string name="error_not_found">找不到 %1$s。检查一下地址；用名字连不上时，换成电脑的 IP 地址试试。</string>
+    <string name="error_unreachable">连不上 %1$s。确认电脑上的松果开着，手机和电脑连着同一个 Wi-Fi，或者都开着 Tailscale。</string>
+    <string name="error_untrusted">%1$s 的 HTTPS 证书不受信任。</string>
+    <string name="error_not_acorn">%1$s 有回应，但不是松果。地址和端口对吗？</string>
+
+    <string name="scan_prompt">扫描电脑上松果显示的登录二维码</string>
+    <string name="scan_no_camera">扫码要用相机。没有相机权限时，也可以直接填地址。</string>
+    <string name="scan_not_address">这个二维码里不是松果的地址。</string>
+
+    <string name="offline_title">连不上松果</string>
+    <string name="offline_retry">重试</string>
+    <string name="offline_change">更换地址</string>
+
+    <string name="switch_title">换到另一个松果？</string>
+    <string name="switch_message">这个登录链接来自 %1$s，现在连接的是 %2$s。</string>
+    <string name="switch_confirm">换过去</string>
+
+    <string name="download_started">正在下载 %1$s</string>
+    <string name="download_failed">下载失败：%1$s</string>
+    <string name="saved">已保存 %1$s</string>
+    <string name="save_failed">没能保存这个文件</string>
+    <string name="no_app">没有能打开这个链接的应用</string>
+
+    <string name="shortcut_scan">扫码登录</string>
+    <string name="shortcut_scan_long">扫码登录松果</string>
+    <string name="shortcut_address">更换地址</string>
+    <string name="shortcut_address_long">更换松果的地址</string>
+</resources>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A server: two stacked units with a light each; same frame as glyph_scan.xml. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="1.8333"
+        android:scaleY="1.8333"
+        android:translateX="32"
+        android:translateY="32">
+        <path
+            android:pathData="M5,3.5h14a1.5,1.5 0,0 1,1.5 1.5v4a1.5,1.5 0,0 1,-1.5 1.5h-14a1.5,1.5 0,0 1,-1.5 -1.5v-4a1.5,1.5 0,0 1,1.5 -1.5zM5,13.5h14a1.5,1.5 0,0 1,1.5 1.5v4a1.5,1.5 0,0 1,-1.5 1.5h-14a1.5,1.5 0,0 1,-1.5 -1.5v-4a1.5,1.5 0,0 1,1.5 -1.5z"
+            android:strokeWidth="2"
+            android:strokeColor="@color/accent"
+            android:strokeLineJoin="round" />
+        <path
+            android:fillColor="@color/accent"
+            android:pathData="M7,5.75a1.25,1.25 0,1 0,0 2.5a1.25,1.25 0,1 0,0 -2.5zM7,15.75a1.25,1.25 0,1 0,0 2.5a1.25,1.25 0,1 0,0 -2.5z" />
+    </group>
+</vector>

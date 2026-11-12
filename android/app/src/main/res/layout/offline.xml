@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The page did not load: the server is off, or the phone is on another network. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/offline"
+    style="@style/Acorn.Panel"
+    android:fillViewport="true"
+    android:visibility="gone">
+
+    <LinearLayout style="@style/Acorn.Column">
+
+        <ImageView
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:alpha="0.85"
+            android:importantForAccessibility="no"
+            android:src="@drawable/acorn_icon" />
+
+        <TextView
+            style="@style/Acorn.Title"
+            android:layout_marginTop="16dp"
+            android:text="@string/offline_title"
+            android:textSize="22sp" />
+
+        <TextView
+            android:id="@+id/offline_message"
+            style="@style/Acorn.Lede"
+            android:layout_marginTop="10dp"
+            android:accessibilityLiveRegion="polite" />
+
+        <TextView
+            android:id="@+id/offline_address"
+            style="@style/Acorn.Hint"
+            android:layout_marginTop="6dp"
+            android:fontFamily="monospace"
+            android:gravity="center"
+            android:textIsSelectable="true" />
+
+        <Button
+            android:id="@+id/retry"
+            style="@style/Acorn.Button.Primary"
+            android:layout_marginTop="28dp"
+            android:text="@string/offline_retry" />
+
+        <Button
+            android:id="@+id/change"
+            style="@style/Acorn.Button"
+            android:layout_marginTop="10dp"
+            android:text="@string/offline_change" />
+    </LinearLayout>
+</ScrollView>
