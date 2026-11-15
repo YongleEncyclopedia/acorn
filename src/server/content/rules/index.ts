@@ -7,6 +7,7 @@ import { wechat } from "./wechat.ts";
 import { zhihu } from "./zhihu.ts";
 import { xiaohongshu } from "./xiaohongshu.ts";
 import { sspai } from "./sspai.ts";
+import { coverage, decodeEntities, htmlToText } from "../../util/text.ts";
 
 export interface RuleResult {
   /** HTML of the article body (unsanitized; the caller sanitizes). */
@@ -53,33 +54,91 @@ export function fixArticleUrl(url: string | null): string | null {
   return (rule?.fixUrl && rule.fixUrl(new URL(url))) || url;
 }
 
-const GENERIC_GONE = [
-  "该内容已被发布者删除",
-  "此内容因违规无法查看",
-  "此内容被多人投诉",
-  "该文章已被删除",
-  "内容已被删除",
-  "该微博已被删除",
-  "抱歉，此微博已被作者删除",
-  "你访问的页面不存在",
-  "页面不存在或已被删除",
-  "该内容暂时无法查看",
-  "根据相关法律法规",
+/**
+ * What sites show in place of a deleted, censored or missing page. A phrase only counts when it is the page's message
+ * (see `genericGone`): a notice that opens with 根据相关法律法规, or an essay quoting 该内容已被删除, is still there.
+ * They name the page itself (该/此内容, 你访问的页面), so a notice saying 相关内容已被删除 does not match.
+ */
+const GENERIC_GONE: RegExp[] = [
+  /该内容已被发布者删除/,
+  /此内容因违规无法查看/,
+  /此内容被多人投诉(?:，相关的内容无法进行查看)?/,
+  /[该此]文章已被(?:作者)?删除/,
+  /[该此]内容已被(?:作者)?删除/,
+  /[该此]微博已被(?:作者)?删除/,
+  /[你您](?:所|要|想)?访问的页面不存在(?:或已被删除)?/,
+  /页面不存在或已被删除/,
+  /该内容暂时无法查看/,
+  // the censorship notice itself, not every sentence that begins with 根据相关法律法规
+  /根据相关法律法规(?:和|及|与)?(?:相关)?政策[，,]?[该此本].{0,8}?(?:不予|未予|无法|暂不|已被)(?:显示|展示|查看|访问|浏览|开放|屏蔽|删除)/,
 ];
 
-/** Generic detector used for every site after site-specific rules. */
-export function detectGone(url: string, html: string, status: number): string | null {
-  if (status === 404 || status === 410 || status === 451) return `HTTP ${status}`;
-  const rule = ruleFor(url);
-  const specific = rule?.gone?.(html, status);
-  if (specific) return specific;
-  const head = html.length > 400_000 ? html.slice(0, 400_000) : html;
-  const text = head.replace(/<[^>]+>/g, " ");
-  if (text.length < 6000) {
-    const hit = GENERIC_GONE.find((p) => text.includes(p));
-    if (hit) return hit;
+/** Markup that is not page text, links (menus, related lists), and the tags that start a new line. */
+const HIDDEN = /<!--[\s\S]*?-->|<(head|script|style|noscript|template|svg|select|textarea)\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
+const LINK = /<a\b[^>]*>[\s\S]*?<\/a\s*>/gi;
+const BLOCK =
+  /<\/?(?:address|article|aside|blockquote|body|br|button|caption|center|dd|details|dialog|div|dl|dt|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|li|main|nav|ol|p|pre|section|summary|table|tbody|td|tfoot|th|thead|tr|ul)\b[^>]*>/gi;
+
+/** A page's title and its visible text outside links, one line per block (paragraph, heading, list item, cell…). */
+function pageLines(html: string): { title: string; lines: string[] } {
+  const markup = (html.length > 400_000 ? html.slice(0, 400_000) : html).replace(/\s+/g, " ");
+  const flat = (s: string) => decodeEntities(s.replace(/<[^>]*>/g, "")).replace(/\p{Cf}/gu, "").replace(/\s+/g, " ").trim();
+  return {
+    title: flat(markup.match(/<title\b[^>]*>(.*?)<\/title\s*>/i)?.[1] || ""),
+    lines: markup.replace(HIDDEN, " ").replace(LINK, " ").replace(BLOCK, "\n").split("\n").map(flat).filter(Boolean),
+  };
+}
+
+/** The gone phrase a line is about: at least a third of it (抱歉，此微博已被作者删除。查看帮助：), not one clause in a paragraph. */
+function goneMessage(line: string): string | null {
+  const text = line.replace(/\s/g, "");
+  for (const re of GENERIC_GONE) {
+    const hit = text.match(re)?.[0];
+    if (hit && hit.length * 3 >= text.length) return hit;
   }
   return null;
+}
+
+/**
+ * The generic check: a phrase from GENERIC_GONE is the page's message (its title, or a heading or line of its own), and
+ * outside links, the title and that message the page has next to no text: under 150 characters in sentences (lines
+ * with ，。；！？, or of eight words or more) and under 1000 in all. A deletion page is one line in the site's frame
+ * (menus, an address and an ICP number in the footer); a live article that quotes the phrase has sentences of its own.
+ */
+function genericGone(html: string): string | null {
+  const { title, lines } = pageLines(html);
+  let message = goneMessage(title);
+  let prose = 0;
+  let rest = 0;
+  for (const line of lines) {
+    const hit = goneMessage(line);
+    if (hit) {
+      message ||= hit;
+      continue;
+    }
+    const n = line.replace(/\s/g, "").length;
+    rest += n;
+    if (/[，。；！？]/.test(line) || (line.match(/[A-Za-z]+/g)?.length ?? 0) >= 8) prose += n;
+    if (prose >= 150 || rest >= 1000) return null;
+  }
+  return message;
+}
+
+/** The page still shows at least half of a text we archived from it (of 50 characters or more; less is too little to tell). */
+function stillShows(html: string, known: string): boolean {
+  return known.replace(/\s+/g, "").length >= 50 && coverage(known, htmlToText(html)) >= 0.5;
+}
+
+/**
+ * Is the page gone (deleted, censored, never there)? Returns the reason, or null. HTTP 404/410/451 settle it; otherwise
+ * the site's rule and then the generic phrases read the page. `known` is text we already hold for this page (the latest
+ * snapshot, or the feed's copy): a page that still shows half of it or more has not gone, whatever phrase it contains.
+ */
+export function detectGone(url: string, html: string, status: number, known?: string | null): string | null {
+  if (status === 404 || status === 410 || status === 451) return `HTTP ${status}`;
+  const reason = ruleFor(url)?.gone?.(html, status) || genericGone(html);
+  if (reason && known && stillShows(html, known)) return null;
+  return reason;
 }
 
 const GENERIC_BLOCK: [RegExp, string][] = [

@@ -107,6 +107,9 @@ export async function capture(app: App, input: CaptureInput): Promise<CaptureRes
   let status = input.status ?? (html ? 200 : 0);
   const entryHtml = entry ? entry.full_content || entry.content : null;
   const entryText = htmlToText(entryHtml);
+  // What we already hold for this page: a page that still shows it is not gone, whatever phrase it also contains.
+  const previous = existing ? app.archives.latestSnapshot(existing.id) : undefined;
+  const known = (previous && snapshotText(app, previous.dir)) || entryText;
   // Sites like WeChat answer every server fetch with a captcha; when the feed already has the article, keep that.
   const feedCopyOnly = !html && input.method === "fetch" && entryText.length > 200 && !!ruleFor(input.url)?.preferFeedCopy;
   if (!html && input.method !== "feed" && !feedCopyOnly) {
@@ -124,7 +127,7 @@ export async function capture(app: App, input: CaptureInput): Promise<CaptureRes
       if (res.ok && /html|xml|text\/plain/i.test(res.contentType || "text/html")) html = body;
       else if (!res.ok) {
         warnings.push(`原网页返回 HTTP ${res.status}`);
-        if (detectGone(finalUrl, body, res.status)) html = body;
+        if (detectGone(finalUrl, body, res.status, known)) html = body;
       } else warnings.push(`原网页不是 HTML（${res.contentType}）`);
     } catch (err) {
       warnings.push(`原网页无法访问：${(err as Error).message}`);
@@ -135,7 +138,7 @@ export async function capture(app: App, input: CaptureInput): Promise<CaptureRes
     warnings.push(`${blocked}：服务器抓到的是验证页，不是正文。可以在浏览器里完成验证后，用「浏览器入藏」重新保存`);
     html = null;
   }
-  const gone = !blocked && (html !== null || status) ? detectGone(finalUrl, html || "", status) : null;
+  const gone = !blocked && (html !== null || status) ? detectGone(finalUrl, html || "", status, known) : null;
 
   let article: Extracted | null = html && !gone ? extractArticle(html, finalUrl, { contentSelector: feed?.config.contentSelector }) : null;
   const fromEntry = (): Extracted => ({

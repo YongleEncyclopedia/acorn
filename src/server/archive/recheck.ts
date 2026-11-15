@@ -1,11 +1,9 @@
-import { readFileSync, existsSync } from "node:fs";
-import path from "node:path";
 import type { App } from "../app.ts";
 import { httpGet, decodeBody } from "../util/http.ts";
 import { detectGone } from "../content/rules/index.ts";
 import { extractArticle } from "../content/extract.ts";
-import { htmlToText, similarity } from "../util/text.ts";
-import { capture } from "./capture.ts";
+import { similarity } from "../util/text.ts";
+import { capture, snapshotText } from "./capture.ts";
 import type { SourceStatus } from "../../shared/types.ts";
 import { logger } from "../util/log.ts";
 
@@ -13,7 +11,8 @@ const log = logger("recheck");
 
 /**
  * Visit an archived article's original URL. Marks it gone when deleted/censored, and stores a new snapshot
- * when the text changed noticeably (so edits are preserved as versions).
+ * when the text changed noticeably (so edits are preserved as versions). A page that still shows the archived
+ * text is not gone, whatever else it says (a notice may well quote 该内容已被删除).
  */
 export async function recheckArchive(app: App, archiveId: number): Promise<{ status: SourceStatus; reason?: string }> {
   const a = app.archives.row(archiveId);
@@ -28,7 +27,9 @@ export async function recheckArchive(app: App, archiveId: number): Promise<{ sta
     return { status: "unknown", reason: (err as Error).message };
   }
   const html = decodeBody(res.body, res.contentType);
-  const gone = detectGone(res.url, html, res.status);
+  const latest = app.archives.latestSnapshot(archiveId);
+  const old = latest ? snapshotText(app, latest.dir) : "";
+  const gone = detectGone(res.url, html, res.status, old);
   if (gone) {
     const was = a.source_status;
     app.archives.setSourceStatus(archiveId, "gone", now);
@@ -44,14 +45,9 @@ export async function recheckArchive(app: App, archiveId: number): Promise<{ sta
     return { status: "unknown", reason: `HTTP ${res.status}` };
   }
   const article = extractArticle(html, res.url);
-  const latest = app.archives.latestSnapshot(archiveId);
-  if (article && latest) {
-    const file = path.join(app.cfg.archiveDir, latest.dir, "content.html");
-    const old = existsSync(file) ? htmlToText(readFileSync(file, "utf8")) : "";
-    if (old && similarity(old, article.text) < 0.9) {
-      await capture(app, { url: a.url, method: "fetch", html, finalUrl: res.url, status: res.status, force: true });
-      return { status: "changed", reason: "原文内容有变化，已保存新版本" };
-    }
+  if (article && old && similarity(old, article.text) < 0.9) {
+    await capture(app, { url: a.url, method: "fetch", html, finalUrl: res.url, status: res.status, force: true });
+    return { status: "changed", reason: "原文内容有变化，已保存新版本" };
   }
   app.archives.setSourceStatus(archiveId, a.source_status === "changed" ? "changed" : "alive", now);
   return { status: a.source_status === "changed" ? "changed" : "alive" };
