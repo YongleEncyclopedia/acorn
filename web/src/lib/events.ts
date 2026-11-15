@@ -4,21 +4,35 @@ import type { ServerEvent } from "../../../src/shared/types.ts";
 import { keys } from "./queries.ts";
 import { toast, ui } from "./store.ts";
 
-/** Subscribe to the server event stream and keep caches fresh. */
+/**
+ * Subscribe to the server event stream and keep caches fresh.
+ *
+ * A page in the back/forward cache keeps its open requests, and each event stream left open there holds one of the
+ * six HTTP/1.1 connections a browser allows per host: after a few full loads in one tab, the live page's requests
+ * found none free and waited. So the stream closes on `pagehide` and reopens when the page comes back from the cache
+ * (`pageshow` with `persisted`), refetching what the page missed meanwhile. Chromium also evicts a cached page whose
+ * request is still open after a minute, so closing it keeps Back instant.
+ */
 export function useServerEvents(enabled: boolean): void {
   const qc = useQueryClient();
   useEffect(() => {
     if (!enabled) return;
     let es: EventSource | null = null;
     let retry = 1000;
-    let closed = false;
+    let retryTimer = 0;
     let countsTimer = 0;
     let importTimer = 0;
     const refreshCounts = () => {
       window.clearTimeout(countsTimer);
       countsTimer = window.setTimeout(() => qc.invalidateQueries({ queryKey: keys.bootstrap }), 400);
     };
+    const disconnect = () => {
+      window.clearTimeout(retryTimer);
+      es?.close();
+      es = null;
+    };
     const connect = () => {
+      disconnect();
       es = new EventSource("/api/events");
       es.onopen = () => (retry = 1000);
       es.onmessage = (msg) => {
@@ -71,16 +85,27 @@ export function useServerEvents(enabled: boolean): void {
         }
       };
       es.onerror = () => {
-        es?.close();
-        if (closed) return;
-        window.setTimeout(connect, retry);
+        disconnect();
+        retryTimer = window.setTimeout(connect, retry);
         retry = Math.min(retry * 2, 30_000);
       };
     };
+    const onPageHide = () => disconnect();
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (!e.persisted) return;
+      retry = 1000;
+      connect();
+      qc.invalidateQueries({ queryKey: keys.bootstrap });
+    };
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pageshow", onPageShow);
     connect();
     return () => {
-      closed = true;
-      es?.close();
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pageshow", onPageShow);
+      disconnect();
+      window.clearTimeout(countsTimer);
+      window.clearTimeout(importTimer);
     };
   }, [enabled, qc]);
 }
