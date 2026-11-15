@@ -1,6 +1,6 @@
 import type { App } from "../app.ts";
 import { httpGet, decodeBody } from "../util/http.ts";
-import { detectGone } from "../content/rules/index.ts";
+import { detectBlocked, detectGone, stillShows } from "../content/rules/index.ts";
 import { extractArticle } from "../content/extract.ts";
 import { similarity } from "../util/text.ts";
 import { capture, snapshotText } from "./capture.ts";
@@ -12,7 +12,8 @@ const log = logger("recheck");
 /**
  * Visit an archived article's original URL. Marks it gone when deleted/censored, and stores a new snapshot
  * when the text changed noticeably (so edits are preserved as versions). A page that still shows the archived
- * text is not gone, whatever else it says (a notice may well quote 该内容已被删除).
+ * text is not gone, whatever else it says (a notice may well quote 该内容已被删除); a captcha or login wall in
+ * its place leaves the status unknown.
  */
 export async function recheckArchive(app: App, archiveId: number): Promise<{ status: SourceStatus; reason?: string }> {
   const a = app.archives.row(archiveId);
@@ -44,10 +45,17 @@ export async function recheckArchive(app: App, archiveId: number): Promise<{ sta
     app.archives.setSourceStatus(archiveId, "unknown", now);
     return { status: "unknown", reason: `HTTP ${res.status}` };
   }
+  // A captcha or login wall in place of the article says nothing about it: neither still there nor changed.
+  const blocked = stillShows(html, old) ? null : detectBlocked(res.url, html);
+  if (blocked) {
+    app.archives.setSourceStatus(archiveId, "unknown", now);
+    return { status: "unknown", reason: blocked };
+  }
   const article = extractArticle(html, res.url);
   if (article && old && similarity(old, article.text) < 0.9) {
-    await capture(app, { url: a.url, method: "fetch", html, finalUrl: res.url, status: res.status, force: true });
-    return { status: "changed", reason: "原文内容有变化，已保存新版本" };
+    const saved = await capture(app, { url: a.url, method: "fetch", html, finalUrl: res.url, status: res.status, force: true });
+    if (saved.snapshotId) return { status: "changed", reason: "原文内容有变化，已保存新版本" };
+    return { status: app.archives.row(archiveId)?.source_status ?? "unknown", reason: saved.warnings.at(-1) };
   }
   app.archives.setSourceStatus(archiveId, a.source_status === "changed" ? "changed" : "alive", now);
   return { status: a.source_status === "changed" ? "changed" : "alive" };

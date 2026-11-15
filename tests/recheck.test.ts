@@ -1,6 +1,7 @@
 /**
  * Rechecking archived pages against a fixture site on localhost: short live pages that quote a deletion phrase stay
- * alive, a page that still shows the archived text stays alive, a page replaced by a deletion notice (HTTP 200) is gone.
+ * alive, a page that still shows the archived text stays alive, a page replaced by a deletion notice (HTTP 200) is gone,
+ * and a captcha in a page's place leaves it unknown instead of passing for a new version.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import http from "node:http";
@@ -35,9 +36,19 @@ const POST = frame(
   "记一次链接失效",
   `<article><h1>记一次链接失效</h1><p>上周想重读一篇讲松鼠贮藏习性的长文，点开收藏的链接，页面只剩下一句话。</p><p>好在当时顺手存了一份，原文和配图都还在，以后读到好文章还是先存下来。</p></article>`,
 );
-const GONE = frame("提示信息", `<div class="msg"><h2>该内容已被删除</h2><p><a href="/">返回首页</a></p></div>`);
+// The site's login box: 验证码 on a page does not make it a captcha page.
+const LOGIN = `<form class="login"><label>用户名</label><input name="u"><label>密码</label><input name="p" type="password"><label>验证码</label><input name="code"><img src="/code.jpg"><button>登录</button></form>`;
+const GONE = frame("提示信息", `${LOGIN}<div class="msg"><h2>该内容已被删除</h2><p><a href="/">返回首页</a></p></div>`);
+const CHALLENGE = `<!doctype html><html><head><title>Just a moment...</title></head><body><div id="challenge-platform"><p>Checking if the site connection is secure. This page refreshes once the check is complete.</p></div></body></html>`;
 
-const pages: Record<string, string> = { "/notice": NOTICE, "/essay": ESSAY, "/post": POST, "/doomed": ESSAY.replaceAll("链接会消失", "将被删除的文章") };
+const pages: Record<string, string> = {
+  "/notice": NOTICE,
+  "/essay": ESSAY,
+  "/post": POST,
+  "/doomed": ESSAY.replaceAll("链接会消失", "将被删除的文章"),
+  "/walled": ESSAY.replaceAll("链接会消失", "藏在验证后面的文章"),
+  "/login": ESSAY.replaceAll("链接会消失", "有登录框的文章"),
+};
 
 let site: http.Server;
 let base = "";
@@ -88,5 +99,22 @@ describe("rechecking archived pages", () => {
     expect(await recheckArchive(app, id)).toEqual({ status: "gone", reason: "该内容已被删除" });
     expect(app.archives.row(id)!.source_status).toBe("gone");
     expect(app.archives.snapshots(id)).toHaveLength(1);
+  });
+
+  it("leaves the status unknown when a captcha stands in for the page", async () => {
+    const id = await archive("/walled");
+    pages["/walled"] = CHALLENGE;
+    expect(await recheckArchive(app, id)).toEqual({ status: "unknown", reason: "网站开启了 Cloudflare 人机验证" });
+    expect(app.archives.row(id)!.source_status).toBe("unknown");
+    expect(app.archives.snapshots(id)).toHaveLength(1);
+  });
+
+  it("does not take a page with 验证码 in its login box for a captcha", async () => {
+    const id = await archive("/login");
+    pages["/login"] = pages["/login"].replace("<article>", `${LOGIN}<article>`);
+    expect(await recheckArchive(app, id)).toEqual({ status: "alive" });
+    pages["/login"] = pages["/login"].replace("</article>", "<p>补记：后来那篇文章在作者的新博客上重新发了出来，链接换了，内容一字未改。</p></article>");
+    expect(await recheckArchive(app, id)).toEqual({ status: "changed", reason: "原文内容有变化，已保存新版本" });
+    expect(app.archives.snapshots(id).map((s) => s.method)).toEqual(["fetch", "fetch"]);
   });
 });

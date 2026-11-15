@@ -125,7 +125,7 @@ function genericGone(html: string): string | null {
 }
 
 /** The page still shows at least half of a text we archived from it (of 50 characters or more; less is too little to tell). */
-function stillShows(html: string, known: string): boolean {
+export function stillShows(html: string, known: string): boolean {
   return known.replace(/\s+/g, "").length >= 50 && coverage(known, htmlToText(html)) >= 0.5;
 }
 
