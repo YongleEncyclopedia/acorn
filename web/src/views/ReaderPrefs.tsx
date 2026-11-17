@@ -28,11 +28,11 @@ export function usePrefs(): [ReaderPrefs, (patch: Partial<ReaderPrefs>) => void]
 }
 
 const THEMES: { value: ReaderPrefs["theme"]; label: string; bg: string; fg: string }[] = [
-  { value: "auto", label: "自动", bg: "linear-gradient(135deg, #f3efe7 50%, #141311 50%)", fg: "#8a5a2b" },
-  { value: "paper", label: "纸", bg: "#f3efe7", fg: "#1f1b16" },
-  { value: "sepia", label: "米", bg: "#ece2cf", fg: "#3a2e20" },
-  { value: "night", label: "夜", bg: "#141311", fg: "#ebe5d8" },
-  { value: "ink", label: "墨", bg: "#000", fg: "#e2e2e0" },
+  { value: "auto", label: "自动", bg: "linear-gradient(135deg, #ffffff 50%, #1c1c1e 50%)", fg: "#c8402c" },
+  { value: "paper", label: "纸", bg: "#ffffff", fg: "#1d1d1f" },
+  { value: "sepia", label: "米", bg: "#f4ecdd", fg: "#33291f" },
+  { value: "night", label: "夜", bg: "#1c1c1e", fg: "#f5f5f7" },
+  { value: "ink", label: "墨", bg: "#000", fg: "#e8e8ed" },
 ];
 
 export function ThemePicker({ value, onChange }: { value: ReaderPrefs["theme"]; onChange: (v: ReaderPrefs["theme"]) => void }) {

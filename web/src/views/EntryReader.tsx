@@ -495,9 +495,12 @@ function NotesPanel({ highlights, onPick }: { highlights: Highlight[]; onPick: (
       <div className="list scroll">
         {highlights.length ? (
           highlights.map((h) => (
-            <div key={h.id} className="item" style={{ borderLeftColor: `var(--hl-${h.color}-solid)` }} onClick={() => onPick(h.id)}>
-              <q>{h.quote}</q>
-              {h.note && <div className="n">{h.note}</div>}
+            <div key={h.id} className="item" onClick={() => onPick(h.id)}>
+              <span className="bar" style={{ background: `var(--hl-${h.color}-solid)` }} />
+              <div>
+                <q>{h.quote}</q>
+                {h.note && <div className="n">{h.note}</div>}
+              </div>
             </div>
           ))
         ) : (

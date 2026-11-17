@@ -5,8 +5,7 @@ import { api } from "./lib/api.ts";
 import { useBootstrap } from "./lib/queries.ts";
 import { useServerEvents } from "./lib/events.ts";
 import { applyTheme } from "./lib/theme.ts";
-import { Logo } from "./components/Logo.tsx";
-import { SealDefs } from "./components/Seal.tsx";
+import { AppIcon } from "./components/Logo.tsx";
 import { Toasts } from "./components/Toasts.tsx";
 import { Lightbox } from "./components/Lightbox.tsx";
 import { ShortcutSheet } from "./components/Shortcuts.tsx";
@@ -139,7 +138,7 @@ function AuthScreen({ setup, canSetup, onDone }: { setup: boolean; canSetup: boo
   return (
     <div className="auth">
       <div className="auth-card">
-        <Logo size={56} />
+        <AppIcon size={72} />
         <h1>松果</h1>
         {setup && !canSetup ? (
           <p>
@@ -250,7 +249,6 @@ export function App() {
   };
   return (
     <>
-      <SealDefs />
       {session.isLoading || (session.isError && !session.data) ? (
         <div className="auth">
           <div className="auth-card">

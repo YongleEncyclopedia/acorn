@@ -1,6 +1,7 @@
 import type { ReaderPrefs } from "../../../src/shared/types.ts";
 
-const THEME_BG: Record<string, string> = { paper: "#f3efe7", sepia: "#ece2cf", night: "#141311", ink: "#000000" };
+// the browser chrome around the app (the status bar on a phone) takes the colour of the top of the list pane
+const THEME_BG: Record<string, string> = { paper: "#ffffff", sepia: "#f8f2e7", night: "#1c1c1e", ink: "#000000" };
 
 export function resolveTheme(theme: ReaderPrefs["theme"]): "paper" | "sepia" | "night" | "ink" {
   if (theme !== "auto") return theme;

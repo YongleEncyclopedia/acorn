@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { BookOpen, Bookmark, ChevronRight, Highlighter, Inbox, Layers, Plus, RefreshCw, Rss, Search, Settings, Sun, UserRound } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Logo } from "../components/Logo.tsx";
+import { AppIcon } from "../components/Logo.tsx";
 import { FeedIcon } from "../components/FeedIcon.tsx";
 import { Seal } from "../components/Seal.tsx";
 import { useBootstrap, keys } from "../lib/queries.ts";
@@ -87,7 +87,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar" aria-label="导航">
       <div className="side-brand">
-        <Logo size={24} />
+        <AppIcon size={24} />
         <span className="wordmark">松果</span>
         <span className="spacer" />
         <button className="icon-btn sm" onClick={() => ui.set({ palette: true })} title="搜索（⌘K）" aria-label="搜索">

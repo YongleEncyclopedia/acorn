@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { Logo } from "../components/Logo.tsx";
+import { AppIcon } from "../components/Logo.tsx";
 import { Ring } from "./EntryList.tsx";
 import { useBootstrap, useEntries } from "../lib/queries.ts";
 import { greeting, timeLeft, todayHeading } from "../lib/format.ts";
@@ -21,7 +21,7 @@ export function ReaderHome({ first, onOpen }: { first: EntrySummary | null; onOp
   return (
     <div className="home scroll">
       <div className="home-inner">
-        <Logo size={36} />
+        <AppIcon size={52} />
         <h2>{greeting()}</h2>
         <p className="day">
           {todayHeading()}

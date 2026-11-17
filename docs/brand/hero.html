@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>松果 Acorn · README banner</title>
+<!--
+  The README's banner. Render it at 1280 × 640 with a device scale of 2:
+    hero.html        → hero-light.png (and, at 1280 × 640, social-preview.png: GitHub's link preview)
+    hero.html#dark   → hero-dark.png
+  The pictures are the README's screenshots (../screenshots), taken from the demo library: scripts/demo/run.mjs.
+-->
+<style>
+  :root {
+    --bg: linear-gradient(#ffffff, #f2f2f5);
+    --glow: rgba(217, 73, 47, 0.07);
+    --ink: #1d1d1f;
+    --ink-2: #6e6e73;
+    --window: #ffffff;
+    --bar: #f6f6f8;
+    --edge: rgba(0, 0, 0, 0.1);
+    --lift: 0 28px 70px -18px rgba(30, 20, 15, 0.28), 0 12px 24px -12px rgba(30, 20, 15, 0.14);
+    --phone: #1d1d1f;
+    --phone-edge: rgba(255, 255, 255, 0.08);
+    --screen: #ffffff;
+  }
+  :root.dark {
+    --bg: linear-gradient(#000000, #0b0b0c);
+    --glow: rgba(240, 98, 75, 0.1);
+    --ink: #f5f5f7;
+    --ink-2: #a1a1a6;
+    --window: #1c1c1e;
+    --bar: #242426;
+    --edge: rgba(255, 255, 255, 0.13);
+    --lift: 0 30px 80px -10px rgba(0, 0, 0, 0.9), 0 0 60px -20px rgba(240, 98, 75, 0.12);
+    --phone: #0c0c0d;
+    --phone-edge: rgba(255, 255, 255, 0.16);
+    --screen: #1c1c1e;
+  }
+  html,
+  body {
+    margin: 0;
+  }
+  body {
+    position: relative;
+    width: 1280px;
+    height: 640px;
+    overflow: hidden;
+    background: var(--bg);
+    font-family: -apple-system, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .glow {
+    position: absolute;
+    inset: -300px 0 auto;
+    height: 680px;
+    background: radial-gradient(closest-side, var(--glow), transparent);
+  }
+  header {
+    position: absolute;
+    top: 40px;
+    left: 0;
+    right: 0;
+    text-align: center;
+  }
+  .icon {
+    display: block;
+    width: 72px;
+    height: 72px;
+    margin: 0 auto;
+    filter: drop-shadow(0 10px 18px rgba(178, 50, 38, 0.3)) drop-shadow(0 2px 4px rgba(90, 19, 11, 0.16));
+  }
+  h1 {
+    margin: 16px 0 0;
+    font-size: 54px;
+    line-height: 1;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-indent: 0.08em;
+    color: var(--ink);
+  }
+  p {
+    margin: 13px 0 0;
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--ink-2);
+  }
+  /* the window and the phone, centred as one group: 980 + 206 − 120 of overlap */
+  .window {
+    position: absolute;
+    left: 107px;
+    top: 258px;
+    width: 980px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--window);
+    box-shadow: 0 0 0 0.5px var(--edge), var(--lift);
+  }
+  .window .bar {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 13px;
+    background: var(--bar);
+    box-shadow: inset 0 -0.5px 0 var(--edge);
+  }
+  .window .bar i {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);
+  }
+  .window .bar i:nth-child(1) {
+    background: #ff5f57;
+  }
+  .window .bar i:nth-child(2) {
+    background: #febc2e;
+  }
+  .window .bar i:nth-child(3) {
+    background: #28c840;
+  }
+  .window img {
+    display: block;
+    width: 980px;
+  }
+  .phone {
+    position: absolute;
+    left: 967px;
+    top: 312px;
+    width: 190px;
+    padding: 8px;
+    border-radius: 40px;
+    background: var(--phone);
+    box-shadow: inset 0 0 0 1px var(--phone-edge), 0 0 0 0.5px var(--edge), var(--lift);
+  }
+  .phone .screen {
+    border-radius: 32px;
+    overflow: hidden;
+    padding-top: 18px;
+    background: var(--screen);
+  }
+  .phone img {
+    display: block;
+    width: 190px;
+  }
+</style>
+</head>
+<body>
+  <div class="glow"></div>
+  <header>
+    <img class="icon" src="icon.svg" alt="">
+    <h1>松果</h1>
+    <p>订阅、阅读、批注。喜欢的，先藏起来。</p>
+  </header>
+  <div class="window">
+    <div class="bar"><i></i><i></i><i></i></div>
+    <img data-light="../screenshots/reader.png" data-dark="../screenshots/reader-night.png" alt="">
+  </div>
+  <div class="phone">
+    <div class="screen"><img data-light="../screenshots/mobile-reader.png" data-dark="../screenshots/mobile-reader-night.png" alt=""></div>
+  </div>
+  <script>
+    const theme = location.hash === "#dark" ? "dark" : "light";
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    for (const img of document.querySelectorAll("img[data-light]")) img.src = img.dataset[theme];
+  </script>
+</body>
+</html>

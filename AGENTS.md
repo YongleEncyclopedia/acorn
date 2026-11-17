@@ -11,6 +11,8 @@ npm install && npm run build && npm start   # http://localhost:7700, data in ./d
 npm test                                    # vitest: unit + end-to-end (fixture website on localhost)
 npm run typecheck                           # tsc for server (tsconfig.json) — and `npx tsc -p web/tsconfig.json` for the web app
 ./bin/acorn help                            # CLI (talks to the running server; token in data/.cli-token)
+npm run icons                               # every icon (web/public, docs/brand) from src/shared/brand.ts
+node scripts/demo/run.mjs                   # a fictional library for screenshots on :7733 (password acorn; build first)
 ```
 
 Node ≥ 22.18 runs the server's TypeScript directly (type stripping). Rules that follow from that:
@@ -51,6 +53,8 @@ src/server/
 src/shared/types.ts    API types shared by server and web — change both sides together
 src/shared/translate.ts which article blocks get translated, language detection (runs on linkedom and in the browser)
 src/shared/article.ts  what the reader works out before setting an article: Latin-script paragraphs, the outline
+src/shared/brand.ts    the mark: the acorn's paths, the icon colours, the continuous-corner squircle — the web logo
+                       (components/Logo.tsx), scripts/make-icons.mjs and the demo all draw from it
 src/client/client.ts   HTTP client used by the CLI and MCP server
 src/cli/main.ts        `acorn` CLI
 src/mcp/server.ts      MCP server (stdio)
@@ -89,8 +93,17 @@ tests/                 vitest; fixtures are real pages saved from the web
   `translations` table and inserted under each block by `web/src/lib/translate.ts` (marked `data-acorn-tr`, which
   highlights and block detection skip). Engines live in `src/server/translate/engine.ts`; tests use fake servers.
 - **UI change** → `web/src`; keep colors as CSS variables in `styles/tokens.css` (5 themes must stay readable:
-  `--ink-3` is text and keeps 4.5:1 against the backgrounds, `--ink-4` is decoration only);
-  check desktop (three panes) and mobile (≤ 760px, tab bar) layouts.
+  `--ink-3` is text and keeps 4.5:1 against the backgrounds, `--ink-4` is decoration only). The look is Apple's:
+  neutral surfaces, hairlines, one tint. White text sits on `--accent-fill`, tinted text uses `--accent-ink`,
+  secondary buttons/chips/fields use `--fill`; the header of `tokens.css` lists the rest.
+  Do not hand-write `-webkit-` prefixes: the build (lightningcss) adds them, and a `-webkit-backdrop-filter`
+  after the standard one makes it drop the standard one — Chrome then gets no blur at all.
+  Check desktop (three panes) and mobile (≤ 760px, tab bar) layouts.
+- **Logo, icons, README art** → the mark is `src/shared/brand.ts`; after changing it run `npm run icons`.
+  README screenshots come from the demo library (`scripts/demo/run.mjs`: fictional sites under `.example`, served
+  in-process, nothing goes out); the banner is `docs/brand/hero.html`, rendered at 1280 × 640 with device scale 2
+  (`#dark` for the dark one) into `docs/brand/hero-{light,dark}.png`. Screenshots must not show a real home folder:
+  give the demo `--data /Users/Shared/Acorn` or similar.
 - **Keyboard shortcut** → register it with `useHotkeys` next to what it acts on, and list it in
   `web/src/components/Shortcuts.tsx` (the `?` sheet and the settings page render that list).
   Anything that opens on top of the page calls `useLayer(onEscape)`; a dialog also gets `useFocusTrap`.

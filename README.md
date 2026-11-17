@@ -1,4 +1,7 @@
-# 松果 Acorn
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/hero-dark.png">
+  <img src="docs/brand/hero-light.png" alt="松果 Acorn：订阅、阅读、批注。喜欢的，先藏起来。">
+</picture>
 
 完全属于你的信息系统：订阅、阅读、批注、**本地存档**。为松鼠党而做——喜欢的就先藏起来，原文被删了，你的副本还在。
 
@@ -7,8 +10,6 @@
 > and a Google Reader API out; every article you care about saved to plain files on your disk, rechecked so you notice
 > when the original disappears. Built to be extended by coding agents (CLI, MCP server, `AGENTS.md`). The interface is
 > in Chinese. Node.js ≥ 22.18, no native modules. License: AGPL-3.0.
-
-![松果的三栏阅读界面：订阅源、文章列表和正文](docs/screenshots/reader.png)
 
 - **订阅一切**：RSS / Atom / JSON Feed、RSSHub 路由、没有 RSS 的网页（学院通知、部门公告，自动识别列表）、用 TypeScript 写的插件源，以及微信公众号（接上 we-mp-rss 后自动同步）。
 - **好读**：宋体 / 霞鹜文楷 / 黑体三套阅读字体，纸、米、夜、墨四种主题，首行缩进、两端对齐，摘要型订阅自动抓全文。长文有目录，可以收起侧栏专注地读，空格一屏一屏往下翻。手机上是一个可以装到主屏幕的 App。
@@ -24,10 +25,12 @@
 
 ## 看看样子
 
+![松果的三栏阅读界面：订阅源、文章列表和正文](docs/screenshots/reader.png)
+
 | | |
 |---|---|
-| ![英文文章逐段双语对照，用本机 qwen3:14b 翻译](docs/screenshots/translate.png) | ![正文里三种颜色的划线](docs/screenshots/highlights.png) |
-| **翻译**：外文文章逐段双语对照，这张用的是本机的 qwen3:14b | **批注**：划线、写想法，批注过的文章自动入藏 |
+| ![英文文章逐段双语对照，标题也译好了](docs/screenshots/translate.png) | ![正文里的划线，右侧是这篇的批注](docs/screenshots/highlights.png) |
+| **翻译**：外文文章逐段双语对照，标题也一起译好 | **批注**：划线、写想法，批注过的文章自动入藏 |
 | ![「藏」：本地存档库](docs/screenshots/archive.png) | ![原文已被删除，读的是本地副本](docs/screenshots/gone.png) |
 | **藏**：每篇存档都是硬盘上的普通文件 | **原文没了，副本还在**：回访发现原文被删，会标出来 |
 
@@ -38,7 +41,7 @@
 </p>
 <p align="center">手机上是一个可以装到主屏幕的 App，跟随系统的深色模式</p>
 
-> 截图里的订阅源、文章和配图都是为演示写的虚构内容。
+> 截图里的订阅源、文章和配图都是为演示写的虚构内容：`node scripts/demo/run.mjs` 会在本机搭起这个演示库（先 `npm run build`）。
 
 ## 快速开始
 
@@ -158,9 +161,10 @@ npm run dev        # 服务端（文件变动自动重启）
 npm run dev:web    # 前端热更新，访问 http://localhost:5173
 npm test           # 测试
 npm run typecheck
+npm run icons      # 从 src/shared/brand.ts 重新生成全部图标
 ```
 
-结构见 `AGENTS.md`；改代码前请先读它。
+结构见 `AGENTS.md`；改代码前请先读它。图标、README 横幅等品牌素材在 `docs/brand/`。
 
 ## 许可证
 
