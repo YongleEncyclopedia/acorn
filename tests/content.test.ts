@@ -49,6 +49,55 @@ describe("extractArticle", () => {
   });
 });
 
+describe("short pages", () => {
+  // Readability starts every <div> at 5 points (an <article> at 0) and skips paragraphs under 25 characters, so one
+  // address line in a footer <div> used to out-score a short article, and the footer became the archived text.
+  const nav = `<ul class="nav"><li><a href="/">首页</a></li><li><a href="/tzgg">通知公告</a></li></ul>`;
+  const foot = `<div class="foot"><p>版权所有 © 2026 示例学院　地址：示例市示例路 1 号</p><p>京ICP备00000000号</p></div>`;
+  const text = (body: string, footer = foot) => extractArticle(`<html><body>${nav}${body}${footer}</body></html>`, "http://127.0.0.1:8080/tzgg/1.html")?.text ?? null;
+  const story = "上周想重读一篇讲松鼠贮藏习性的长文，点开收藏的链接，页面只剩下一句话。好在当时顺手存了一份，原文和配图都还在。";
+  const notice = "<h1>关于停水的通知</h1><p>明日上午九点至十一点停水。</p><p>请各位师生提前储水。</p><p>特此通知。</p>";
+  const noticeText = "关于停水的通知\n明日上午九点至十一点停水。\n请各位师生提前储水。\n特此通知。";
+  const two = "<p>上周想重读一篇讲松鼠贮藏习性的长文，点开收藏的链接，页面只剩下一句话。</p><p>好在当时顺手存了一份，原文和配图都还在，于是又从头读了一遍。</p>";
+  const twoText = "上周想重读一篇讲松鼠贮藏习性的长文，点开收藏的链接，页面只剩下一句话。\n好在当时顺手存了一份，原文和配图都还在，于是又从头读了一遍。";
+
+  it("keeps the text of the page's <article> or <main>, not its footer", () => {
+    expect(text(`<article><h1>记一次链接失效</h1><p>${story}</p></article>`)).toBe(`记一次链接失效\n${story}`);
+    expect(text(`<article><h1>记一次链接失效</h1>${two}</article>`)).toBe(`记一次链接失效\n${twoText}`);
+    expect(text(`<article>${notice}</article>`)).toBe(noticeText);
+    expect(text(`<main>${notice}</main>`)).toBe(noticeText);
+    expect(text(`<div role="main">${notice}</div>`)).toBe(noticeText);
+  });
+
+  it("is not thrown by a footer longer than the article", () => {
+    // the longest of Readability's attempts is the footer; this one also carries a line of unit names
+    const long = `<div class="footer"><p>示例学院学生工作部（处）　示例学院团委　示例学院后勤服务中心　示例学院图书馆</p><p>版权所有 © 2026 示例学院　地址：示例市示例区示例路 1 号　邮编：100000　电话：010-00000000　传真：010-00000001</p><p>京ICP备00000000号-1　京公网安备 11010802000000号　技术支持：示例网络科技有限公司</p></div>`;
+    expect(text(`<article><h1>记一次链接失效</h1>${two}</article>`, long)).toBe(`记一次链接失效\n${twoText}`);
+    expect(text(`<article>${notice}</article>`, long)).toBe(noticeText);
+  });
+
+  it("leaves Readability's pick alone when it lies within the article, or the article is not the page's text", () => {
+    // within: Readability drops the date line
+    expect(text(`<article><h1>记一次链接失效</h1><div class="meta">发布时间：2026-10-01</div><div class="body">${two}</div></article>`)).toBe(twoText);
+    // a short text next to a teaser in the sidebar
+    expect(text(`<div class="post-body">${two}</div><aside><article><h3>相关阅读</h3><p>松鼠怎么记住埋橡果的地方？研究者在校园里跟踪了三十只松鼠。</p></article></aside>`)).toBe(twoText);
+    // a long body next to the page's only <article>, a header card
+    const long = "<p>松鼠在秋天把橡果埋进土里，留到冬天慢慢吃，有些橡果被忘在土里，第二年春天长成了小橡树。</p>".repeat(6);
+    const card = text(`<article class="post-header"><h1>松鼠的贮藏</h1><p>2026-10-01</p></article><div class="post-body">${long}</div>`);
+    expect(card?.startsWith("松鼠在秋天把橡果埋进土里")).toBe(true);
+    expect(card?.length).toBeGreaterThan(200);
+  });
+
+  it("never keeps a footer as the article when the page marks no content", () => {
+    expect(text(`<div class="main-content">${notice}</div>`)).toBeNull();
+    // the CMS containers still get their turn after Readability
+    expect(text(`<div class="article-content">${notice}</div>`)).toBe(noticeText);
+    // contact details alone are not a footer
+    const contact = "<h1>联系我们</h1><p>地址：示例市示例区示例路 1 号示例学院行政楼 201 室</p><p>电话：010-00000000</p><p>邮箱：office@example.edu</p>";
+    expect(text(`<div class="content">${contact}</div>`)).toContain("行政楼 201 室");
+  });
+});
+
 describe("gone and blocked detection", () => {
   it("recognizes the WeChat captcha page as blocked, not gone", () => {
     const html = fx("wechat-captcha.html");
