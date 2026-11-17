@@ -14,21 +14,27 @@ export function randomToken(bytes = 24): string {
 
 const ENTITY: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
+/** Decode numeric character references and the few named entities that matter for text. */
+export function decodeEntities(s: string): string {
+  return s.replace(/&(#x?[0-9a-f]+|\w+);/gi, (m, code: string) => {
+    if (code[0] === "#") {
+      const n = code[1] === "x" || code[1] === "X" ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
+      return Number.isFinite(n) && n > 0 && n < 0x110000 ? String.fromCodePoint(n) : m;
+    }
+    return ENTITY[code.toLowerCase()] ?? m;
+  });
+}
+
 /** Very small HTML → text for excerpts and search indexing (not for rendering). */
 export function htmlToText(html: string | null | undefined): string {
   if (!html) return "";
-  return html
-    .replace(/<(script|style|noscript|template)[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|li|h[1-6]|blockquote|pre|tr|section|article|figure)>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&(#x?[0-9a-f]+|\w+);/gi, (m, code: string) => {
-      if (code[0] === "#") {
-        const n = code[1] === "x" || code[1] === "X" ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
-        return Number.isFinite(n) && n > 0 && n < 0x110000 ? String.fromCodePoint(n) : m;
-      }
-      return ENTITY[code.toLowerCase()] ?? m;
-    })
+  return decodeEntities(
+    html
+      .replace(/<(script|style|noscript|template)[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|div|li|h[1-6]|blockquote|pre|tr|section|article|figure)>/gi, "\n")
+      .replace(/<[^>]+>/g, " "),
+  )
     .replace(/[ \t\f\v 　]+/g, " ")
     .replace(/\s*\n\s*/g, "\n")
     .replace(/\n{2,}/g, "\n")
@@ -48,21 +54,33 @@ export function countWords(text: string): number {
   return cjk + latin;
 }
 
+/** The character 4-grams of a text, whitespace ignored. */
+function grams(s: string): Set<string> {
+  const t = s.replace(/\s+/g, "");
+  const set = new Set<string>();
+  for (let i = 0; i + 4 <= t.length; i += 1) set.add(t.slice(i, i + 4));
+  return set;
+}
+
 /** Character 4-gram Jaccard similarity, robust to small edits; used for change detection. */
 export function similarity(a: string, b: string): number {
   if (a === b) return 1;
-  const grams = (s: string) => {
-    const t = s.replace(/\s+/g, "");
-    const set = new Set<string>();
-    for (let i = 0; i + 4 <= t.length; i += 1) set.add(t.slice(i, i + 4));
-    return set;
-  };
   const A = grams(a);
   const B = grams(b);
   if (!A.size && !B.size) return 1;
   let inter = 0;
   for (const g of A) if (B.has(g)) inter += 1;
   return inter / (A.size + B.size - inter);
+}
+
+/** Share (0–1) of `part`'s character 4-grams that also occur in `whole`: how much of an archived text a page still shows. */
+export function coverage(part: string, whole: string): number {
+  const missing = grams(part);
+  const size = missing.size;
+  if (!size) return 0;
+  const t = whole.replace(/\s+/g, "");
+  for (let i = 0; i + 4 <= t.length && missing.size; i += 1) missing.delete(t.slice(i, i + 4));
+  return (size - missing.size) / size;
 }
 
 export function slugify(title: string, max = 40): string {

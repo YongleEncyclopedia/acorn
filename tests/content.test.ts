@@ -59,6 +59,76 @@ describe("gone and blocked detection", () => {
     expect(detectGone("https://mp.weixin.qq.com/s/abc", "<html><body><p>该内容已被发布者删除</p></body></html>", 200)).toBe("该内容已被发布者删除");
     expect(detectGone("https://e.com/x", "", 404)).toBe("HTTP 404");
   });
+
+  // Every page of a school site comes in the same frame: menus (links), a script, a footer with an address and an ICP number.
+  const page = (title: string, body: string) =>
+    `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><script>var tips = { gone: "该内容已被删除" };</script></head><body>` +
+    `<ul class="nav"><li><a href="/">首页</a></li><li><a href="/tzgg.htm">通知公告</a></li><li><a href="/xzzx.htm">下载中心</a></li></ul>${body}` +
+    `<div class="foot"><p>版权所有 © 2026 示例大学教务处　地址：示例市示例路 1 号　邮编：100000</p><p>电话：010-00000000　京ICP备00000000号</p></div></body></html>`;
+  const url = "https://jwc.example.edu.cn/info/1222/1.htm";
+  // one of each kind the generic check knows
+  const PHRASES = [
+    "该内容已被发布者删除",
+    "此内容因违规无法查看",
+    "此内容被多人投诉，相关的内容无法进行查看",
+    "该文章已被删除",
+    "该内容已被删除",
+    "抱歉，此微博已被作者删除",
+    "你访问的页面不存在",
+    "页面不存在或已被删除",
+    "该内容暂时无法查看",
+    "根据相关法律法规和政策，该内容不予显示",
+  ];
+
+  it("keeps short notices that open with 根据相关法律法规 or mention deleted content", () => {
+    const notice = (body: string) => page("关于2027年寒假放假安排的通知-教务处", `<div class="v_news_content"><h1>关于2027年寒假放假安排的通知</h1>${body}<p>教务处</p><p>2026年12月20日</p></div>`);
+    expect(detectGone(url, notice("<p>根据相关法律法规和学校工作安排，现将2027年寒假放假安排通知如下：</p><p>一、学生自1月10日起放假，2月20日报到注册。</p><p>特此通知。</p>"), 200)).toBeNull();
+    expect(detectGone(url, notice("<p>根据相关法律法规，</p><p>现将有关事项通知如下：</p><p>一、即日起暂停对外开放。</p>"), 200)).toBeNull();
+    expect(detectGone(url, notice("<p>根据相关法律法规和政策，以下栏目暂不予显示：</p><p>一、校友风采；二、媒体报道。</p>"), 200)).toBeNull();
+    expect(detectGone(url, notice("<p>近期发现网站部分栏目存在过期信息。</p><p>经核查，相关内容已被删除。</p><p>特此说明。</p>"), 200)).toBeNull();
+  });
+
+  it("keeps short live pages that quote a deletion phrase", () => {
+    for (const p of PHRASES) {
+      const quoted = page("链接会消失", `<article><h1>链接会消失</h1><p>三年前收藏的文章，如今点开只剩一行字：「${p}」。原文和评论都不见了，所以我开始自己存档。</p></article>`);
+      expect(detectGone(url, quoted, 200), p).toBeNull();
+      const essay = page(
+        p,
+        `<article><h1>${p}</h1><p>这是我最近最常看到的一句话。三年前收藏的文章，十篇里有三篇已经打不开了，有的被作者删掉，有的随着整个网站一起关停。</p>` +
+          `<blockquote>${p}</blockquote><p>后来我养成了一个习惯：读到值得留下的文章，先存一份到自己的硬盘上，再慢慢读。存的时候连图片和附件一起，免得哪天只剩下文字。</p>` +
+          `<p>存下来的东西不会因为谁的一个决定就消失。多花几秒钟，换来的是很多年后还能翻到它的安心，这笔账怎么算都划得来。</p></article>`,
+      );
+      expect(detectGone(url, essay, 200), p).toBeNull();
+    }
+  });
+
+  it("recognizes a page whose message is the phrase", () => {
+    for (const p of PHRASES) {
+      const reason = detectGone(url, page("提示信息", `<div class="msg"><h2>${p}</h2><p>请检查网址是否正确，或<a href="/">返回首页</a>。</p></div>`), 200);
+      expect(reason && p.includes(reason), `${p} → ${reason}`).toBe(true);
+    }
+  });
+
+  it("recognizes real deletion pages", () => {
+    const weibo = `<html><head><title>微博</title></head><body><div class="h5-4box"><p class="h5-4con">抱歉，此微博已被作者删除。查看帮助：<a href="https://kefu.weibo.com/faqdetail?id=20222">https://kefu.weibo.com/faqdetail?id=20222</a></p></div></body></html>`;
+    expect(detectGone("https://m.weibo.cn/status/5000000000000000", weibo, 200)).toBe("此微博已被作者删除");
+    const wechat = `<html><head><title></title></head><body><div class="weui-msg"><h2 class="weui-msg__title">此内容因违规无法查看</h2><p class="weui-msg__desc">由用户投诉并经平台审核，涉嫌违反相关法律法规和政策，<a href="#">查看对应规则</a></p></div></body></html>`;
+    expect(detectGone("https://mp.weixin.qq.com/s/abc", wechat, 200)).toBe("此内容因违规无法查看");
+    expect(detectGone("https://weixin.example.com/s/abc", wechat, 200)).toBe("此内容因违规无法查看");
+    expect(detectGone("https://zhuanlan.zhihu.com/p/1", "<html><body><h1>你似乎来到了没有知识存在的荒原</h1></body></html>", 200)).toBe("知乎提示内容已删除");
+    const soft404 = page("提示信息", `<div class="error"><h2>对不起，您访问的页面不存在或已被删除！</h2><p>请检查网址是否正确，或返回首页。</p></div>`);
+    expect(detectGone(url, soft404, 200)).toBe("您访问的页面不存在或已被删除");
+    expect(detectGone("https://app.example.com/a/1", '<html><head><title>该内容已被删除</title></head><body><div id="app"></div></body></html>', 200)).toBe("该内容已被删除");
+  });
+
+  it("keeps a page that still shows the text archived from it", () => {
+    const post = "上周想重读一篇讲松鼠贮藏习性的长文，点开收藏的链接，页面只剩下一句话。好在当时顺手存了一份，原文和配图都还在。";
+    const html = page("记一次链接失效", `<article><h1>记一次链接失效</h1><p>${post}</p><p>该内容已被删除</p></article>`);
+    expect(detectGone(url, html, 200)).toBe("该内容已被删除"); // this short, the page alone reads like a deletion notice
+    expect(detectGone(url, html, 200, post)).toBeNull();
+    expect(detectGone(url, html, 200, "松鼠在秋天把橡果埋进土里，留到冬天慢慢吃。我们收藏文章也一样：先收好，再慢慢读，某个冬夜就能在自己的硬盘上找到它。")).toBe("该内容已被删除");
+    expect(detectGone(url, "", 404, post)).toBe("HTTP 404");
+  });
 });
 
 describe("mhtml", () => {
