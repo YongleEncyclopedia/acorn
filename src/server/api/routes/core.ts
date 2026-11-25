@@ -5,7 +5,7 @@ import { readdirSync, statSync, existsSync } from "node:fs";
 import path from "node:path";
 import type { App } from "../../app.ts";
 import { counts } from "../../app.ts";
-import { VERSION } from "../../config.ts";
+import { ROOT, VERSION } from "../../config.ts";
 import type { Bootstrap, SearchResults, Stats } from "../../../shared/types.ts";
 import { listPlugins } from "../../feeds/plugins.ts";
 import { egoAvailable } from "../../archive/browser.ts";
@@ -46,6 +46,8 @@ export function registerCore(r: Hono, app: App, hooks: Hooks = {}): void {
       egoBrowser: await egoAvailable(app),
       telegram: telegramConfigured(app),
       dataDir: app.cfg.dataDir,
+      appDir: ROOT,
+      port: app.cfg.port,
     };
     return c.json(body);
   });

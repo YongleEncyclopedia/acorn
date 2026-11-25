@@ -20,5 +20,11 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npx tsc -p web/tsconfig.json
+      # the desktop shell: Electron's type definitions are enough, not its 100 MB binary
+      - run: npm ci
+        working-directory: desktop
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npx tsc -p desktop/tsconfig.json
       - run: npm test
       - run: npm run build

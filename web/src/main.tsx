@@ -7,9 +7,11 @@ import "./styles/app.css";
 import "./styles/reader.css";
 import { queryClient } from "./lib/queries.ts";
 import { bootTheme } from "./lib/theme.ts";
+import { markShell } from "./lib/desktop.ts";
 import { App } from "./App.tsx";
 
 bootTheme();
+markShell();
 // Not awaited: the interface paints with system fonts and the reading fonts swap in when they arrive.
 void import("./fonts.ts");
 

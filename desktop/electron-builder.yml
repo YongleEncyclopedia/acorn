@@ -1,0 +1,62 @@
+# 松果 Acorn, packed as a desktop app. In desktop/, after `npm run build` in the project root:
+#   npm run pack   an unpacked app for this machine (desktop/release/mac-arm64/…, *-unpacked)
+#   npm run dist   installers for this machine
+# stage.mjs assembles build/app first. .github/workflows/desktop.yml builds macOS, Windows and Linux on a tag.
+appId: io.github.yongleencyclopedia.acorn
+productName: 松果
+copyright: Copyright © 2026 Acorn contributors. AGPL-3.0-or-later.
+electronVersion: 45.2.3
+directories:
+  app: build/app
+  output: release
+  buildResources: icons
+# Electron's Node runs the .ts files as they are. Loading them, as ES modules, out of an asar archive inside a
+# utility process is not worth betting on; a plain folder costs a little disk and nothing else.
+asar: false
+# no native modules
+npmRebuild: false
+artifactName: Acorn-${version}-${os}-${arch}.${ext}
+files:
+  - "**/*"
+  - "!**/*.map"
+# the server's dependencies, as `npm ci` installed them (see stage.mjs); with asar off the app is Resources/app
+extraResources:
+  - from: build/node_modules
+    to: app/node_modules
+
+mac:
+  category: public.app-category.news
+  icon: icons/icon-mac.png
+  darkModeSupport: true
+  target: [dmg, zip]
+  # Ad-hoc signed: runs on Apple silicon, but Gatekeeper asks once on first open (see README). A Developer ID and
+  # notarization would remove that; hardened runtime is only needed for them, and it rejects ad-hoc frameworks.
+  identity: "-"
+  hardenedRuntime: false
+dmg:
+  title: 松果 ${version}
+
+win:
+  icon: icons/icon.png
+  target: nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: 松果
+  artifactName: Acorn-Setup-${version}-${arch}.${ext}
+
+linux:
+  icon: icons/icon.png
+  executableName: acorn
+  category: Network
+  synopsis: 订阅、阅读、批注、本地存档
+  description: 完全属于你的信息系统：订阅、阅读、批注、本地存档。
+  maintainer: YongleEncyclopedia <YongleEncyclopedia@users.noreply.github.com>
+  target: [AppImage, deb]
+
+publish:
+  provider: github
+  owner: YongleEncyclopedia
+  repo: acorn
+  releaseType: draft
