@@ -122,6 +122,19 @@ export class FeedStore {
     return r ? toFeed(r) : undefined;
   }
 
+  /** What a source keeps between fetches (plugin_state), as get/set of JSON values. */
+  state(feedId: number): { get: <T = unknown>(key: string) => T | undefined; set: (key: string, value: unknown) => void } {
+    return {
+      get: <T,>(key: string) => {
+        const r = this.db.get<{ value: string }>("select value from plugin_state where feed_id = ? and key = ?", feedId, key);
+        return r ? (JSON.parse(r.value) as T) : undefined;
+      },
+      set: (key, value) => {
+        this.db.run("insert into plugin_state (feed_id, key, value) values (?, ?, ?) on conflict(feed_id, key) do update set value = excluded.value", feedId, key, JSON.stringify(value));
+      },
+    };
+  }
+
   find(kind: FeedKind, url: string): FeedInternal | undefined {
     const r = this.db.get<FeedRow>(`${COUNTS_SQL} where f.kind = ? and f.url = ?`, kind, url);
     return r ? toFeed(r) : undefined;

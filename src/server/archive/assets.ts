@@ -54,6 +54,8 @@ interface Options {
   leadImage?: string | null;
   userAgent: string;
   maxAssets?: number;
+  /** Headers that sign a download in, for files of a signed-in platform (accounts/use.ts assetHeaders). */
+  headersFor?: (url: string) => Record<string, string> | null;
 }
 
 function bestFromSrcset(srcset: string | null): string | null {
@@ -79,7 +81,7 @@ async function download(url: string, opts: Options): Promise<{ body: Buffer; typ
   const referers: (string | null)[] = rule?.imageReferer ? [rule.imageReferer(opts.pageUrl), null] : [originOf(opts.pageUrl) + "/", null];
   for (const referer of [...new Set(referers)]) {
     try {
-      const res = await httpGet(url, { userAgent: opts.userAgent, referer, accept: "image/avif,image/webp,image/*,*/*;q=0.8", maxBytes: 30 * 1024 * 1024, timeoutMs: 30_000 });
+      const res = await httpGet(url, { userAgent: opts.userAgent, referer, headers: opts.headersFor?.(url) ?? undefined, accept: "image/avif,image/webp,image/*,*/*;q=0.8", maxBytes: 30 * 1024 * 1024, timeoutMs: 30_000 });
       if (!res.ok) continue;
       const declared = res.contentType.split(";")[0].trim().toLowerCase();
       const type = declared.startsWith("image/") ? declared : sniffImage(res.body);
@@ -129,7 +131,7 @@ async function localizeAttachments(root: Element, opts: Options): Promise<AssetR
   for (const a of anchors.slice(0, 20)) {
     const url = a.getAttribute("href")!;
     try {
-      const res = await httpGet(url, { userAgent: opts.userAgent, referer: opts.pageUrl, maxBytes: 60 * 1024 * 1024, timeoutMs: 60_000 });
+      const res = await httpGet(url, { userAgent: opts.userAgent, referer: opts.pageUrl, headers: opts.headersFor?.(url) ?? undefined, maxBytes: 60 * 1024 * 1024, timeoutMs: 60_000 });
       if (!res.ok || /text\/html/i.test(res.contentType) || res.body.length < 64) continue;
       let name = filenameFrom(res, res.url, a.textContent || "");
       while (used.has(name)) name = name.replace(/(\.[^.]+)?$/, (ext) => `-1${ext || ""}`);

@@ -108,14 +108,15 @@ interface ScriptResult {
   title?: string;
 }
 
-async function runEgo(app: App, script: string, out: string, timeoutMs: number): Promise<{ res: ScriptResult; read: (f: string) => Buffer | null }> {
+/** Run a script in ego-browser; it reports by printing `ACORN_RESULT <json>`. Also used to sign in to platforms (accounts/). */
+export async function runEgo<T extends object = ScriptResult>(app: App, script: string, out: string, timeoutMs: number): Promise<{ res: T; read: (f: string) => Buffer | null }> {
   const { stdout, stderr } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
     const p = spawn(app.cfg.egoBrowserBin, ["nodejs", "-e", script], { stdio: ["ignore", "pipe", "pipe"] });
     let so = "";
     let se = "";
     const timer = setTimeout(() => {
       p.kill("SIGTERM");
-      reject(new Error("浏览器入藏超时"));
+      reject(new Error("浏览器没有在规定时间内完成"));
     }, timeoutMs);
     p.stdout.on("data", (d) => (so += d));
     p.stderr.on("data", (d) => (se += d));
@@ -131,7 +132,7 @@ async function runEgo(app: App, script: string, out: string, timeoutMs: number):
   const line = `${stdout}\n${stderr}`.split("\n").find((l) => l.startsWith("ACORN_RESULT "));
   if (!line) throw new Error(`ego-browser 没有返回结果：${(stderr || stdout).trim().slice(-300) || "无输出"}`);
   const read = (f: string) => (existsSync(path.join(out, f)) ? readFileSync(path.join(out, f)) : null);
-  return { res: JSON.parse(line.slice("ACORN_RESULT ".length)) as ScriptResult, read };
+  return { res: JSON.parse(line.slice("ACORN_RESULT ".length)) as T, read };
 }
 
 function toShot(res: ScriptResult, read: (f: string) => Buffer | null, url: string): BrowserShot {

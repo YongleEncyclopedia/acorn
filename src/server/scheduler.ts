@@ -1,3 +1,4 @@
+import { syncClassCalendar } from "./calendar/index.ts";
 import { Cron } from "croner";
 import type { App } from "./app.ts";
 import { queueRefresh } from "./feeds/refresh.ts";
@@ -40,6 +41,11 @@ export function startScheduler(app: App): Scheduler {
       for (const a of app.archives.dueForRecheck(Date.now() - s.recheckDays * 86_400_000, 6)) {
         app.jobs.add(`recheck:${a.id}`, hostOf(a.url), () => recheckArchive(app, a.id).then(() => undefined), -5);
       }
+    }
+    // 班级日历: classmates' links again every three hours, and the Feishu calendar after them
+    const cal = app.calendar.state();
+    if (app.calendar.links().length && Date.now() - (cal.refreshedAt ?? 0) > 3 * 3_600_000) {
+      app.jobs.add("class-calendar", "", () => syncClassCalendar(app).then(() => undefined, (err) => log.warn("class calendar sync failed", (err as Error).message)), -4);
     }
     if (s.wechatBridge.url) {
       app.jobs.add("wechat-bridge", "", () => syncWechatBridge(app).then(() => undefined, (err) => log.debug("we-mp-rss sync failed", err)), -4);

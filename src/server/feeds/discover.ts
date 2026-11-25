@@ -10,7 +10,7 @@ export interface Candidate {
 
 const FEED_TYPES = /application\/(rss|atom|rdf|feed)\+xml|application\/(feed\+)?json|text\/xml|application\/xml/i;
 
-/** Find <link rel="alternate"> feeds and well-known feed paths on a web page. */
+/** The feeds a page declares (<link rel="alternate">). Links that only look like feeds are in feedLinks(). */
 export function discoverFeeds(html: string, pageUrl: string): Candidate[] {
   const { document } = parseHTML(html);
   const out: Candidate[] = [];
@@ -24,14 +24,33 @@ export function discoverFeeds(html: string, pageUrl: string): Candidate[] {
     seen.add(href);
     out.push({ url: href, title: link.getAttribute("title") || "", kind: "feed" });
   }
+  return out;
+}
+
+/**
+ * Links that may be feeds or a page listing them: "/rss.html" (日经中文网's feed has that address), "/feed/",
+ * "/rss/index.xml", or a link that reads "RSS" / "订阅源". To be checked by reading them.
+ */
+export function feedLinks(html: string, pageUrl: string): { url: string; title: string }[] {
+  const { document } = parseHTML(html);
+  const out: { url: string; title: string }[] = [];
+  const seen = new Set<string>();
   for (const a of document.querySelectorAll("a[href]")) {
     const href = absolutize(a.getAttribute("href"), pageUrl);
-    if (!href || seen.has(href)) continue;
-    if (/\/(feed|rss|atom)(\.xml|\.json)?\/?$|\/(index|rss|feed|atom)\.(xml|rss)$/i.test(new URL(href).pathname)) {
-      seen.add(href);
-      out.push({ url: href, title: a.textContent?.trim() || "", kind: "feed" });
+    if (!href || seen.has(href) || !/^https?:/i.test(href)) continue;
+    const text = (a.textContent || "").replace(/\s+/g, " ").trim();
+    let path = "";
+    try {
+      const u = new URL(href);
+      path = u.pathname + u.search;
+    } catch {
+      continue;
     }
-    if (out.length > 12) break;
+    if (/(^|[/._?=&-])(rss|feeds?|atom|rdf)([/._?=&-]|$)/i.test(path) || /^(rss|atom|feeds?|rss ?订阅|订阅源|rss ?feed)$/i.test(text)) {
+      seen.add(href);
+      out.push({ url: href, title: text.length < 60 ? text : "" });
+    }
+    if (out.length >= 10) break;
   }
   return out;
 }

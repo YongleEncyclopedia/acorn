@@ -8,6 +8,7 @@ import { countWords, excerpt, htmlToText } from "../util/text.ts";
 import { absolutize, hostOf } from "../util/url.ts";
 import { fetchFullText } from "../content/fulltext.ts";
 import { fixArticleUrl, ruleFor } from "../content/rules/index.ts";
+import { readsWithAccount } from "../accounts/use.ts";
 import { needsTranslation } from "../../shared/translate.ts";
 import { requestTranslation } from "../translate/index.ts";
 import { archiveEntry } from "../archive/capture.ts";
@@ -74,7 +75,7 @@ export async function refreshFeed(app: App, feedId: number): Promise<RefreshResu
   if (!feed) return { added: 0, error: "订阅源不存在" };
   const started = Date.now();
   try {
-    const res = await fetchSource(app, { kind: feed.kind, url: feed.url, config: feed.config, etag: feed.etag, lastModified: feed.lastModified });
+    const res = await fetchSource(app, { kind: feed.kind, url: feed.url, config: feed.config, etag: feed.etag, lastModified: feed.lastModified, feedId: feed.id });
     if (res.notModified) {
       app.feeds.recordSuccess(feed.id, Date.now(), nextFetchAt(app, feed, false), res.etag, res.lastModified);
       app.feeds.log(feed.id, { at: started, status: "not_modified", added: 0, ms: Date.now() - started, error: null });
@@ -94,13 +95,15 @@ export async function refreshFeed(app: App, feedId: number): Promise<RefreshResu
 
     if (added.length) {
       const byId = new Map(items.map((it) => [it.guid, it]));
+      // a platform read with the user's sign-in hands over whole posts; its pages show the server a login
+      const signedIn = await readsWithAccount(app, feed);
       for (const id of added) {
         const row = app.entries.row(id);
         if (!row) continue;
         const incoming = byId.get(row.guid);
         const want = feed.fullText === "always" || (feed.fullText === "auto" && incoming && needsFullText(incoming));
         // Sites like WeChat often answer with a captcha: when the feed already has the body, don't fetch the page.
-        const useFeedCopy = !!row.url && !!ruleFor(row.url)?.preferFeedCopy && (incoming?.wordCount ?? 0) >= 200;
+        const useFeedCopy = signedIn || (!!row.url && !!ruleFor(row.url)?.preferFeedCopy && (incoming?.wordCount ?? 0) >= 200);
         if (want && row.url && !useFeedCopy) app.jobs.add(`fulltext:${id}`, hostOf(row.url), () => fetchFullText(app, id).then(() => undefined), -1);
         if (feed.autoArchive && row.url) app.jobs.add(`archive:entry:${id}`, hostOf(row.url), () => archiveEntry(app, id, "fetch").then(() => undefined), -2);
       }
@@ -139,6 +142,7 @@ export async function refreshFeed(app: App, feedId: number): Promise<RefreshResu
 export function queueRefresh(app: App, feedId: number, priority = 0): boolean {
   const feed = app.feeds.get(feedId);
   if (!feed) return false;
-  const host = feed.kind === "rsshub" ? "rsshub" : feed.kind === "plugin" ? `plugin:${feed.url}` : hostOf(feed.url);
+  // a plugin's subscriptions (several 星球…) ask the same platform: one at a time
+  const host = feed.kind === "rsshub" ? "rsshub" : feed.kind === "plugin" ? `plugin:${feed.config.plugin?.id || feed.url}` : hostOf(feed.url);
   return app.jobs.add(`refresh:${feedId}`, host, () => refreshFeed(app, feedId).then(() => undefined), priority);
 }

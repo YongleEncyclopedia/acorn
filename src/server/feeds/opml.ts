@@ -70,12 +70,20 @@ function attr(s: string): string {
 }
 
 /** Export all subscriptions. RSSHub routes are exported as full URLs; Acorn-only sources keep their config. */
+/** A subscription's settings without the secrets in them (a push address's key). */
+function withoutSecrets(config: FeedConfig): FeedConfig {
+  const params = config.plugin?.params;
+  if (!params?.token) return config;
+  const { token: _secret, ...rest } = params;
+  return { ...config, plugin: { ...config.plugin!, params: rest } };
+}
+
 export function exportOpml(app: App): string {
   const feeds = app.feeds.list();
   const folders = app.feeds.folders();
   const line = (f: (typeof feeds)[number], indent: string) => {
     const xmlUrl = f.kind === "plugin" ? `plugin:${f.url}` : resolveSourceUrl(app, f.kind, f.url).replace(/([?&])key=[^&]*/, "$1").replace(/[?&]$/, "");
-    const extra = f.kind === "feed" ? "" : ` acornKind="${f.kind}" acornUrl="${attr(f.url)}" acornConfig="${attr(JSON.stringify(f.config))}"`;
+    const extra = f.kind === "feed" ? "" : ` acornKind="${f.kind}" acornUrl="${attr(f.url)}" acornConfig="${attr(JSON.stringify(withoutSecrets(f.config)))}"`;
     return `${indent}<outline type="rss" text="${attr(f.title)}" title="${attr(f.title)}" xmlUrl="${attr(xmlUrl)}"${f.siteUrl ? ` htmlUrl="${attr(f.siteUrl)}"` : ""}${extra}/>`;
   };
   const out = [`<?xml version="1.0" encoding="UTF-8"?>`, `<opml version="2.0">`, `  <head><title>Acorn 松果 订阅</title><dateCreated>${new Date().toUTCString()}</dateCreated></head>`, `  <body>`];

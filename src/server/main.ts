@@ -7,6 +7,7 @@ import { startScheduler, type Scheduler } from "./scheduler.ts";
 import { hasPassword, setPassword } from "./api/auth.ts";
 import { holdLock, lockHolder } from "./lock.ts";
 import { logger } from "./util/log.ts";
+import { applyNetwork } from "./util/proxy.ts";
 
 const log = logger("acorn");
 const cfg = loadConfig();
@@ -21,6 +22,9 @@ if (holder) {
 const app = createApp(cfg);
 let release = () => {};
 
+// before anything goes out: feeds, the models catalog and translations may all need the proxy
+applyNetwork(app.settings.all().network);
+
 // ACORN_PASSWORD only sets the first password; changing it later happens in the app or with `acorn passwd`.
 if (cfg.initialPassword && !app.settings.getRaw("_password")) {
   setPassword(app, cfg.initialPassword);
@@ -31,6 +35,7 @@ ensureCliToken(app);
 let scheduler: Scheduler | null = null;
 const http = createHttp(app, {
   onSettingsChanged: () => {
+    applyNetwork(app.settings.all().network);
     scheduler?.rescheduleDigest();
     scheduler?.rescheduleBackup();
   },

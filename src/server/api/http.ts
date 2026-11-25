@@ -12,10 +12,15 @@ import { registerArchives } from "./routes/archives.ts";
 import { registerTranslate } from "./routes/translate.ts";
 import { registerImports } from "./routes/imports.ts";
 import { registerData } from "./routes/data.ts";
+import { registerAccounts } from "./routes/accounts.ts";
+import { registerNetwork } from "./routes/network.ts";
+import { registerInbox } from "./routes/inbox.ts";
+import { registerCalendar } from "./routes/calendar.ts";
+import { LoginExpiredError } from "../feeds/plugin-api.ts";
 import { registerGReader } from "./greader.ts";
 import { registerOutputs } from "./outputs.ts";
 import { SourceChoiceError } from "../feeds/add.ts";
-import { HttpError } from "../util/http.ts";
+import { HttpError, BotCheckError } from "../util/http.ts";
 import { NotAFeedError } from "../feeds/parse.ts";
 import { BlockedError, GoneError } from "../archive/capture.ts";
 import { BrowserBlockedError } from "../archive/browser.ts";
@@ -51,7 +56,11 @@ export function createHttp(app: App, hooks: Hooks = {}): Hono {
     if (err instanceof BrowserBlockedError) return c.json({ error: "verify", message: err.message, spaceId: err.spaceId, url: err.url }, 423);
     if (err instanceof BlockedError) return c.json({ error: "blocked", message: err.message }, 423);
     if (err instanceof GoneError) return c.json({ error: "gone", message: err.message, reason: err.reason }, 410);
+    // a site's bot check stopped the server: the web app offers to read it through the user's browser
+    if (err instanceof BotCheckError) return c.json({ error: "bot_check", message: err.message, vendor: err.vendor }, 502);
     if (err instanceof HttpError) return c.json({ error: "upstream", message: err.message, status: err.status }, 502);
+    // not 401: that would tell the web app its own session ended
+    if (err instanceof LoginExpiredError) return c.json({ error: "login_expired", message: err.message }, 409);
     if (err instanceof SyntaxError) return c.json({ error: "bad_request", message: "请求格式不正确" }, 400);
     log.error(`${c.req.method} ${c.req.path}`, err);
     return c.json({ error: "server_error", message: err.message }, 500);
@@ -110,6 +119,10 @@ export function createHttp(app: App, hooks: Hooks = {}): Hono {
   registerTranslate(r, app);
   registerImports(r, app);
   registerData(r, app);
+  registerAccounts(r, app);
+  registerNetwork(r, app);
+  registerInbox(r, app);
+  registerCalendar(r, app);
   registerGReader(r, app);
   registerOutputs(r, app);
 

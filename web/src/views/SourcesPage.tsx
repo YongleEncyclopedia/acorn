@@ -3,7 +3,9 @@ import { Link, useLocation, useSearch } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCheck, Download, FolderPlus, Menu as MenuIcon, MoreHorizontal, Pause, Pencil, Play, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
 import { Layout } from "./Layout.tsx";
-import { KindBadge, PreviewList, RuleEditor } from "./AddSource.tsx";
+import { KindBadge, ParamField, PreviewList, RuleEditor } from "./AddSource.tsx";
+import { CopyLine } from "../components/CopyLine.tsx";
+import { PushInfo } from "../components/PushInfo.tsx";
 import { api } from "../lib/api.ts";
 import { keys, useBootstrap } from "../lib/queries.ts";
 import { relTime, hostname, fullDate } from "../lib/format.ts";
@@ -43,15 +45,21 @@ function FeedEditor({ feed, onClose }: { feed: Feed; onClose: () => void }) {
   const [contentSelector, setContentSelector] = useState(feed.config.contentSelector || "");
   const [cookie, setCookie] = useState(feed.config.cookie || "");
   const [ua, setUa] = useState(feed.config.userAgent || "");
+  const [viaBrowser, setViaBrowser] = useState(!!feed.config.browser);
+  const outKey = useQuery({ queryKey: ["output-key"], queryFn: api.outputKey, staleTime: Infinity });
   const [preview, setPreview] = useState<PreviewItem[] | null>(null);
   const [busy, setBusy] = useState(false);
   const logs = useQuery({ queryKey: ["feed-logs", feed.id], queryFn: () => api.feedLogs(feed.id) });
-  const plugin = boot.data?.plugins.find((p) => p.id === feed.url);
+  // a plugin subscription's address carries its parameters ("zsxq?group=…"); its id is in the config
+  const pluginId = feed.config.plugin?.id || feed.url.split("?")[0];
+  const plugin = boot.data?.plugins.find((p) => p.id === pluginId);
 
   const config = (): FeedConfig => {
     const c: FeedConfig = { ...feed.config };
     if (feed.kind === "html") c.html = rule;
-    if (feed.kind === "plugin") c.plugin = { id: feed.url, params };
+    if (feed.kind === "plugin") c.plugin = { ...feed.config.plugin, id: pluginId, params };
+    if (viaBrowser && feed.kind !== "plugin") c.browser = true;
+    else delete c.browser;
     if (contentSelector.trim()) c.contentSelector = contentSelector.trim();
     else delete c.contentSelector;
     if (cookie.trim()) c.cookie = cookie.trim();
@@ -89,7 +97,7 @@ function FeedEditor({ feed, onClose }: { feed: Feed; onClose: () => void }) {
   const testRule = async () => {
     setBusy(true);
     try {
-      const p = await api.preview(feed.kind === "rsshub" ? `rsshub:/${url}` : url, feed.kind, config());
+      const p = await api.preview(feed.kind === "rsshub" ? `rsshub:/${url}` : feed.kind === "plugin" ? `plugin:${pluginId}` : url, feed.kind, config());
       setPreview(p.items);
     } catch (e) {
       toastError(e);
@@ -150,19 +158,22 @@ function FeedEditor({ feed, onClose }: { feed: Feed; onClose: () => void }) {
         {feed.kind !== "plugin" && (
           <div className="form-row">
             <label className="lbl">
-              {feed.kind === "rsshub" ? "RSSHub 路由" : feed.kind === "html" ? "网页地址" : "订阅地址"} <KindBadge kind={feed.kind} />
+              {feed.kind === "rsshub" ? "RSSHub 路由" : feed.kind === "html" ? "网页地址" : "订阅地址"} <KindBadge kind={feed.kind} browser={!!feed.config.browser} />
             </label>
             <input className="field mono" value={url} onChange={(e) => setUrl(e.target.value)} />
           </div>
         )}
         {feed.kind === "html" && <RuleEditor rule={rule} onChange={setRule} />}
+        {feed.kind === "plugin" && pluginId === "inbox" && params.token && <PushInfo token={params.token} />}
         {feed.kind === "plugin" &&
-          (plugin?.params || []).map((p) => (
-            <div key={p.key} className="form-row">
-              <label className="lbl">{p.label}</label>
-              <input className="field" value={params[p.key] || ""} placeholder={p.placeholder} onChange={(e) => setParams({ ...params, [p.key]: e.target.value })} />
-            </div>
-          ))}
+          (plugin?.params || [])
+            .filter((p) => !p.hidden)
+            .map((p) => (
+              <div key={p.key} className="form-row">
+                <label className="lbl">{p.label}</label>
+                <ParamField pluginId={pluginId} param={p} account={feed.config.plugin?.account ?? null} value={params[p.key] || ""} onChange={(v) => setParams((cur) => ({ ...cur, [p.key]: v }))} />
+              </div>
+            ))}
         {(feed.kind === "html" || feed.kind === "plugin" || feed.kind === "rsshub") && (
           <div>
             <button className="btn sm" onClick={testRule} disabled={busy}>
@@ -217,7 +228,22 @@ function FeedEditor({ feed, onClose }: { feed: Feed; onClose: () => void }) {
             </div>
             <Switch checked={paused} onChange={setPaused} />
           </div>
+          {feed.kind !== "plugin" && boot.data?.egoBrowser && (
+            <div className="setting-row">
+              <div className="txt">
+                <b>用我的浏览器读取</b>
+                <span>网站的防护拦下服务器、或者列表靠脚本加载时打开：每次更新都在你的 ego 浏览器里读，那台电脑要开着</span>
+              </div>
+              <Switch checked={viaBrowser} onChange={setViaBrowser} />
+            </div>
+          )}
         </div>
+        {outKey.data && (
+          <div className="form-row">
+            <label className="lbl">RSS 地址（给别的阅读器、工具订阅这个来源）</label>
+            <CopyLine text={`${window.location.origin}/out/feed/${feed.id}.xml?key=${outKey.data.key}`} label="RSS 地址" />
+          </div>
+        )}
         <details>
           <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--ink-2)", fontWeight: 600 }}>高级</summary>
           <div className="form-grid" style={{ marginTop: 12 }}>
