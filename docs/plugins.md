@@ -28,8 +28,18 @@ const plugin: AcornPlugin = {
 export default plugin;
 ```
 
-`ctx` 提供：`params`、`fetchText(url, { headers, referer, cookie })`、`fetchJson`、`parseHTML`（linkedom）、
-`absolutize`、`parseDate`、`log`。
+`ctx` 提供：`params`、`fetchText(url, { headers, referer, cookie })`、`fetchJson`、`request`（不因错误状态码抛错，
+带响应头，适合翻页和判断登录失效）、`parseHTML`（linkedom）、`absolutize`、`parseDate`、`log`。
+
+参数可以是下拉选项：`options: [{ value, label }]`；也可以从账号里读可选项（比如你加入的星球）：设 `fromAccount: true`，
+再实现 `choices(ctx, key)`。
+
+### 要登录的平台
+
+插件声明 `account: "<平台 id>"` 后，会拿到「设置 → 账号」里那份登录：`ctx.account` 有 `origin`、`token`、`cookie`，
+跨站单点登录的还有 `jar`（按域名分的 Cookie）。平台不再接受登录时调用 `ctx.loginExpired("说明")`：账号会标成
+「登录已过期」，订阅源提示用户重新登录，而不是一遍遍重试。平台本身（登录方式、检查登录的 `whoami`、请求头）登记在
+`src/server/accounts/services.ts`；内置的知识星球、Canvas、交我办在 `src/server/feeds/builtin/`，可以照着写。
 
 订阅：网页界面「添加订阅 → 插件」，或者 `acorn add plugin:my-source`，或者 MCP 工具 `add_feed`（`kind: "plugin"`）。
 

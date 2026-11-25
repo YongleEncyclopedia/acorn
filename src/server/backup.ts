@@ -4,6 +4,7 @@
  * refreshed; nothing is ever deleted from the backup. The result works as ACORN_DATA_DIR as it is.
  */
 import { backup as sqliteBackup } from "node:sqlite";
+import { forgetSecrets } from "./store/accounts.ts";
 import { cp } from "node:fs/promises";
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -80,6 +81,7 @@ async function backupInto(app: App, dir: string): Promise<BackupReport> {
     const tmp = path.join(dir, "acorn.db.tmp");
     rmSync(tmp, { force: true });
     await sqliteBackup(app.db.raw, tmp);
+    forgetSecrets(tmp);
     for (const f of ["acorn.db-wal", "acorn.db-shm"]) rmSync(path.join(dir, f), { force: true });
     renameSync(tmp, path.join(dir, "acorn.db"));
 

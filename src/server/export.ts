@@ -8,6 +8,7 @@ import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { PassThrough } from "node:stream";
 import { backup as sqliteBackup } from "node:sqlite";
+import { forgetSecrets } from "./store/accounts.ts";
 import type { App } from "./app.ts";
 import type { Highlight } from "../shared/types.ts";
 import { ZipWriter } from "./util/zip.ts";
@@ -48,6 +49,7 @@ async function build(app: App, full: boolean, out: PassThrough): Promise<void> {
     const tmp = path.join(app.cfg.cacheDir, `export-${process.pid}-${Date.now()}.db`);
     try {
       await sqliteBackup(app.db.raw, tmp);
+      forgetSecrets(tmp);
       await zip.file("acorn.db", tmp);
     } finally {
       rmSync(tmp, { force: true });

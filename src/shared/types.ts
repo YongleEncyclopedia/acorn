@@ -32,12 +32,18 @@ export interface HtmlRule {
 
 export interface FeedConfig {
   html?: HtmlRule;
-  plugin?: { id: string; params?: Record<string, string> };
+  /** `account`: the 账号 (Settings → 账号) a plugin signs in with, for platforms that need one. */
+  plugin?: { id: string; params?: Record<string, string>; account?: number };
   headers?: Record<string, string>;
   cookie?: string;
   userAgent?: string;
   /** Feed-specific content selector used when extracting full text. */
   contentSelector?: string;
+  /**
+   * Read through the user's own browser (ego-browser) instead of the server: for sites whose bot protection stops
+   * servers, and for pages whose list is filled in by scripts (the rendered page is read).
+   */
+  browser?: boolean;
 }
 
 export interface Feed {
@@ -240,6 +246,26 @@ export interface Settings {
   translate: TranslateSettings;
   /** A second data directory kept up to date: empty dir = off; cron = when the daily copy runs. */
   backup: { dir: string; auto: boolean; cron: string };
+  /** How the server reaches the internet. */
+  network: NetworkSettings;
+}
+
+/** system: the proxy this computer uses (environment, or macOS network settings); manual: `url`; off: direct. */
+export interface NetworkSettings {
+  proxy: "system" | "manual" | "off";
+  url: string;
+  /** Hosts that never go through the proxy, comma separated (local services, the campus network). */
+  bypass: string;
+}
+
+/** What the server does about the proxy right now. */
+export interface NetworkStatus {
+  /** The proxy in use ("" = direct). */
+  active: string;
+  /** The proxy this computer is set to use, if any. */
+  system: string;
+  /** This Node can use a proxy at all (Node 24+). */
+  supported: boolean;
 }
 
 export interface BackupReport {
@@ -305,6 +331,88 @@ export interface OfflineAssets {
   bytes: { app: number; serif: number; kai: number };
 }
 
+/** A platform Acorn can sign in to, to read what the user's own account sees there. */
+export interface AccountService {
+  id: string;
+  name: string;
+  /** Where it lives; services that run at many addresses (Canvas) let the user change it. */
+  origin: string;
+  originEditable: boolean;
+  /** Signing in in the user's own browser (ego-browser) is possible: Acorn reads the sign-in from there. */
+  browserLogin: boolean;
+  /** Signing in by hand: what to paste, and where to find it. */
+  manual: { kind: "token" | "cookie"; label: string; placeholder: string; steps: string[]; link?: string };
+}
+
+/** A sign-in to one platform. The credential itself never leaves the server. */
+export interface Account {
+  id: number;
+  service: string;
+  origin: string;
+  /** Who the platform says is signed in. */
+  name: string;
+  /** expired: the platform no longer accepts the sign-in; subscriptions using it wait for a new one. */
+  status: "ok" | "expired" | "error";
+  error: string | null;
+  checkedAt: number | null;
+  createdAt: number;
+  /** Subscriptions that read with it. */
+  feeds: number;
+}
+
+/** Signing in through the user's browser: done, or waiting for the user in the page Acorn opened. */
+export type BrowserLogin = { account: Account } | { waiting: true; spaceId: number; message: string };
+
+/** 班级日历: a classmate who chose to share their Canvas calendar link. The link itself never comes back whole. */
+export interface ClassMember {
+  id: number;
+  name: string;
+  /** The link, masked: its host and the last characters, to tell links apart. */
+  link: string;
+  createdAt: number;
+  checkedAt: number | null;
+  error: string | null;
+  /** Items the link held at the last fetch. */
+  events: number;
+  /** The owner's own source (their Canvas announcements), not a classmate's link. */
+  own: boolean;
+}
+
+/** One item of the class calendar: how many classmates have it, never who. */
+export interface ClassEvent {
+  key: string;
+  kind: "exam" | "quiz" | "lab" | "presentation" | "assignment" | "event";
+  /** The course and title only when at least `minCount` classmates have it; otherwise the kind and the count. */
+  title: string;
+  course: string | null;
+  count: number;
+  /** From the owner's own Canvas (a course's announcement or due date), not only from classmates. */
+  mine: boolean;
+  start: number;
+  end: number;
+  allDay: boolean;
+  /** A due date: shown as the half hour before it. */
+  due: boolean;
+}
+
+export interface ClassCalendarConfig {
+  /** Below this many classmates, an item shows only its kind and count. */
+  minCount: number;
+  /** important: exams, quizzes, labs, presentations; all: every course item, homework included. */
+  include: "important" | "all";
+  feishuAppId: string;
+  feishuCalendarId: string;
+  feishuSyncedAt: number | null;
+  feishuError: string | null;
+}
+
+export interface ClassCalendar {
+  config: ClassCalendarConfig & { feishuSecretSet: boolean };
+  members: ClassMember[];
+  /** The next weeks of the class calendar. */
+  events: ClassEvent[];
+}
+
 export interface WechatBridgeStatus {
   url: string;
   accounts: { id: string; title: string; feedId: number | null }[];
@@ -328,13 +436,39 @@ export interface Bootstrap {
   egoBrowser: boolean;
   telegram: boolean;
   dataDir: string;
+  /** Where the program itself is installed (the repository, or inside the desktop app), and the port it serves on. */
+  appDir: string;
+  port: number;
+}
+
+export interface PluginParam {
+  key: string;
+  label: string;
+  required?: boolean;
+  placeholder?: string;
+  /** Fixed choices, shown as a menu. */
+  options?: { value: string; label: string }[];
+  /** The choices come from the signed-in account (the 星球 it joined…): GET /api/plugins/:id/choices. */
+  fromAccount?: boolean;
+  /** Not shown in forms (filled in by Acorn). */
+  hidden?: boolean;
+  /** Filled with a random value when a subscription is made without it (a push address's token). */
+  generate?: boolean;
+  /** Left out of the subscription's address and of OPML exports (a push token). */
+  secret?: boolean;
 }
 
 export interface PluginInfo {
   id: string;
   name: string;
   description: string;
-  params: { key: string; label: string; required?: boolean; placeholder?: string }[];
+  params: PluginParam[];
+  /** Comes with Acorn (src/server/feeds/builtin) rather than from the plugins directory. */
+  builtin?: boolean;
+  /** The platform whose 账号 it reads with (an AccountService id). */
+  account?: string;
+  /** Where 添加订阅 lists it: sources that need an account, general sources (JSON, page watch), or nowhere (push). */
+  group?: "account" | "general" | "hidden";
   error?: string;
 }
 
@@ -360,10 +494,26 @@ export interface FeedPreview {
   siteUrl: string | null;
   description: string | null;
   items: PreviewItem[];
-  /** When the input was a web page, the feeds discovered on it. */
-  candidates: { url: string; title: string; kind: FeedKind; guessed?: boolean }[];
+  /** When the input was a web page, the feeds discovered on it. `browser`: only the user's browser can read it. */
+  candidates: { url: string; title: string; kind: FeedKind; guessed?: boolean; browser?: boolean }[];
   /** Auto-detected HTML list rule when the page has no feed. */
   suggestedRule: HtmlRule | null;
+  /** RSSHub routes for this address (from RSSHub's radar rules): platforms that block servers or have no feed. */
+  rsshub?: RsshubMatch[];
+  /** The address answers JSON: how its items map to articles (the `json` source's parameters). */
+  json?: Record<string, string> | null;
+  /** Why the address itself could not be read, when other ways are still offered. */
+  problem?: string;
+  /** Read through the user's browser: subscribing keeps reading it that way (FeedConfig.browser). */
+  browser?: boolean;
+}
+
+/** An RSSHub route that serves a page, worked out from RSSHub's radar rules. */
+export interface RsshubMatch {
+  title: string;
+  route: string;
+  /** The route's documentation (what its parameters mean, whether it needs a cookie). */
+  docs?: string;
 }
 
 export interface SearchResults {

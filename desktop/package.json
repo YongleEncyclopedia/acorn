@@ -1,0 +1,19 @@
+{
+  "name": "acorn-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "松果 Acorn as a desktop app: the reader in a window, with the server beside it.",
+  "type": "module",
+  "main": "main.ts",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "start": "electron .",
+    "pack": "node stage.mjs && electron-builder --config electron-builder.yml --dir --publish never",
+    "dist": "node stage.mjs && electron-builder --config electron-builder.yml",
+    "icons": "node icons/make-icons.mjs"
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0"
+  }
+}

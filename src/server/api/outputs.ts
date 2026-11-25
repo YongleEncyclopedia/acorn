@@ -6,6 +6,9 @@
  *   /out/starred.xml?key=…                read-later
  * The key is an API token (Settings → Agent 与 API 令牌).
  */
+import { timingSafeEqual } from "node:crypto";
+import { randomToken } from "../util/text.ts";
+import { classIcs } from "../calendar/index.ts";
 import type { Hono, Context } from "hono";
 import type { App } from "../app.ts";
 import type { Param } from "../db/index.ts";
@@ -54,9 +57,22 @@ ${i.author ? `<dc:creator>${esc(i.author)}</dc:creator>` : ""}
 `;
 }
 
+/** The key of the RSS addresses (设置 → 订阅源 → RSS 地址): it opens /out/* and nothing else. Made on first use. */
+export function outputKey(app: App, fresh = false): string {
+  let key = app.settings.getRaw("_outputKey");
+  if (!key || fresh) {
+    key = `out_${randomToken(18)}`;
+    app.settings.setRaw("_outputKey", key);
+  }
+  return key;
+}
+
 function authorized(app: App, c: Context): boolean {
   const key = c.req.query("key") || bearer(c) || "";
-  return !!(key && app.tokens.verify(key));
+  if (!key) return false;
+  const own = app.settings.getRaw("_outputKey");
+  if (own && key.length === own.length && timingSafeEqual(Buffer.from(key), Buffer.from(own))) return true;
+  return !!app.tokens.verify(key);
 }
 
 interface Row {
@@ -71,6 +87,10 @@ interface Row {
 }
 
 export function registerOutputs(r: Hono, app: App): void {
+  // behind the login (under /api): the key, and a new one that retires the old addresses
+  r.get("/api/outputs/key", (c) => c.json({ key: outputKey(app) }));
+  r.post("/api/outputs/key", (c) => c.json({ key: outputKey(app, true) }));
+
   const entries = (where: string, params: Param[], limit = 50): Item[] =>
     app.db
       .all<Row>(`select id, title, url, guid, sort_at, author, content, full_content from entries e where ${where} order by sort_at desc limit ?`, ...params, limit)
@@ -91,6 +111,15 @@ export function registerOutputs(r: Hono, app: App): void {
     if (!folder) return c.text("not found", 404);
     return send(c, rss(folder.name, app.cfg.publicUrl, entries("e.feed_id in (select id from feeds where folder_id = ?)", [id], 100)));
   });
+  // the class calendar: counts without names, behind a key of its own (设置 → 班级日历), never an API token
+  r.get("/out/class-calendar.ics", (c) => {
+    const want = app.calendar.state().icsKey;
+    const key = c.req.query("key") || "";
+    if (!want || key.length !== want.length || !timingSafeEqual(Buffer.from(key), Buffer.from(want))) return c.text("链接不对，或者已经换过新的", 401);
+    c.header("cache-control", "no-cache");
+    return c.body(classIcs(app), 200, { "content-type": "text/calendar; charset=utf-8" });
+  });
+
   r.get("/out/starred.xml", (c) => {
     if (!authorized(app, c)) return c.text("需要 key（API 令牌）", 401);
     return send(c, rss("松果 · 稍后读", app.cfg.publicUrl, entries("e.starred_at is not null", [], 100)));
