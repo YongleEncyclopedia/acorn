@@ -198,6 +198,8 @@ describe("subscribing to the stand-in site", () => {
   it("keeps the proxy setting tidy", async () => {
     const r = await call("/api/settings", "PATCH", { network: { proxy: "manual", url: " 127.0.0.1:7897 " } });
     expect(r.json.network).toMatchObject({ proxy: "manual", url: "http://127.0.0.1:7897" });
-    expect((await call("/api/network")).json).toMatchObject({ supported: true });
+    // the proxy needs Node 24 (http.setGlobalProxyFromEnv); on Node 22 the setting is kept and the page says so
+    const canProxy = typeof (http as unknown as { setGlobalProxyFromEnv?: unknown }).setGlobalProxyFromEnv === "function";
+    expect((await call("/api/network")).json).toMatchObject({ supported: canProxy });
   });
 });
