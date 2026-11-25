@@ -35,8 +35,14 @@ import type {
   BackupStatus,
   WechatBridgeStatus,
   WechatBridgeSync,
+  ModelList,
+  ModelTest,
+  TranslateSettings,
 } from "../../../src/shared/types.ts";
 import { noteAnswer } from "./connection.ts";
+
+/** The AI settings the settings page is editing, sent before they are saved. */
+export type AiDraft = Pick<TranslateSettings, "provider" | "preset" | "baseUrl" | "apiKey"> & Partial<Pick<TranslateSettings, "model" | "reasoning" | "contextLength" | "extraBody">>;
 
 export class ApiError extends Error {
   status: number;
@@ -150,8 +156,10 @@ export const api = {
   summary: (body: { entryId?: number; archiveId?: number; generate?: boolean; fresh?: boolean }) => post<{ summary: ArticleSummary | null }>("/api/summary", body),
   addresses: () => get<{ origins: { label: string; origin: string }[] }>("/api/addresses"),
   loginLink: () => post<{ path: string; expiresAt: number; origins: { label: string; origin: string }[] }>("/api/login-link"),
-  translateModels: () => get<{ models: string[] }>("/api/translate/models"),
-  translateTest: () => post<{ ok: boolean; text?: string; error?: string; ms: number; model?: string }>("/api/translate/test"),
+  /** The models of a service as typed into the settings page, before saving. */
+  aiModels: (draft: AiDraft) => post<ModelList>("/api/translate/models", draft),
+  /** One sentence through a configuration: the saved one, or the draft. */
+  translateTest: (draft?: AiDraft) => post<ModelTest>("/api/translate/test", draft),
   wechatBridge: () => get<WechatBridgeStatus>("/api/wechat-bridge"),
   wechatSync: () => post<WechatBridgeSync>("/api/wechat-bridge/sync"),
   feedLogs: (id: number) => get<FetchLogItem[]>(`/api/feeds/${id}/logs`),

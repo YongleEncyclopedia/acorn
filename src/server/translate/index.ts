@@ -6,9 +6,11 @@
 import type { App } from "../app.ts";
 import type { TranslationJob } from "../../shared/types.ts";
 import { sourceKey } from "../../shared/translate.ts";
+import { contextFor } from "../../shared/ai.ts";
 import { sha1 } from "../util/text.ts";
 import { logger } from "../util/log.ts";
 import { translateBatch } from "./engine.ts";
+import { modelInfo } from "./models.ts";
 
 const log = logger("translate");
 const MAX_TEXTS = 1500;
@@ -96,10 +98,13 @@ function kick(app: App): void {
 /** Translate the next chunk of a job. */
 async function step(app: App, job: Job): Promise<void> {
   const cfg = app.settings.all().translate;
+  const info = await modelInfo(app, cfg);
   const local = cfg.provider === "ollama";
-  // A small first chunk puts the title and opening paragraphs on screen within seconds.
+  // A small first chunk puts the title and opening paragraphs on screen within seconds. A chunk and its
+  // translation must fit the context window together (a character can be a token, in Chinese).
   const first = job.items.every((t) => !t);
-  const maxChars = first ? 400 : local ? 1600 : 5000;
+  const room = Math.max(400, Math.floor((contextFor(cfg, info).tokens - 1500) / 2));
+  const maxChars = Math.min(first ? 400 : local ? 1600 : 5000, room);
   const maxCount = local ? 16 : 40;
   // Same text twice in one article is translated once.
   const chunk: string[] = [];
@@ -114,7 +119,7 @@ async function step(app: App, job: Job): Promise<void> {
   }
   const started = Date.now();
   try {
-    const out = await translateBatch(cfg, chunk, job.lang);
+    const out = await translateBatch(cfg, chunk, job.lang, info);
     chunkHashes.forEach((h, k) => {
       app.translations.put(h, job.lang, out[k], cfg.model);
       job.hashes.forEach((hh, i) => {
