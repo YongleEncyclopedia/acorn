@@ -1,4 +1,9 @@
 import type {
+  NetworkStatus,
+  Account,
+  AccountService,
+  ClassCalendar,
+  BrowserLogin,
   ArchiveDetail,
   ArchiveSummary,
   Bootstrap,
@@ -183,4 +188,27 @@ export const api = {
   logs: () => get<{ at: number; level: string; scope: string; msg: string }[]>("/api/logs"),
   digestPreview: () => get<{ html: string; configured: boolean }>("/api/digest/preview"),
   digestSend: () => post<{ ok: boolean }>("/api/digest/send"),
+
+  // 账号: sign-ins to platforms such as 知识星球 and Canvas (the server keeps the credential)
+  accounts: () => get<{ services: AccountService[]; accounts: Account[] }>("/api/accounts"),
+  connectAccount: (body: { service: string; origin?: string; token?: string; cookie?: string }) => post<{ account: Account }>("/api/accounts", body),
+  browserLogin: (body: { service: string; origin?: string }) => post<BrowserLogin>("/api/accounts/browser", body),
+  browserLoginDone: (spaceId: number) => post<BrowserLogin>(`/api/accounts/browser/${spaceId}`),
+  checkAccount: (id: number) => post<{ account: Account }>(`/api/accounts/${id}/check`),
+  deleteAccount: (id: number) => del<{ ok: boolean }>(`/api/accounts/${id}`),
+  // 班级日历
+  classCalendar: () => get<ClassCalendar>("/api/class-calendar"),
+  addClassLinks: (text: string) => post<{ added: number; failed: { name: string; error: string }[]; calendar: ClassCalendar }>("/api/class-calendar/members", { text }),
+  addOwnCanvas: () => post<ClassCalendar>("/api/class-calendar/own-canvas"),
+  removeClassMember: (id: number) => del<ClassCalendar>(`/api/class-calendar/members/${id}`),
+  patchClassCalendar: (body: { minCount?: number; include?: "important" | "all"; feishuAppId?: string; feishuAppSecret?: string; feishuCalendarId?: string }) => patch<ClassCalendar>("/api/class-calendar", body),
+  syncClassCalendar: () => post<{ feishu: { created: number; updated: number; removed: number } | null; calendar: ClassCalendar }>("/api/class-calendar/sync"),
+  classCalendarLink: () => post<{ path: string }>("/api/class-calendar/link"),
+  // 网络: the proxy, and whether a site can be reached
+  network: () => get<NetworkStatus>("/api/network"),
+  networkTest: (url?: string) => post<{ ok: boolean; status?: number; error?: string; ms: number; via: string; url: string }>("/api/network/test", url ? { url } : {}),
+  // the key of the RSS addresses (/out/*)
+  outputKey: () => get<{ key: string }>("/api/outputs/key"),
+  newOutputKey: () => post<{ key: string }>("/api/outputs/key"),
+  pluginChoices: (id: string, key: string, account?: number | null) => get<{ value: string; label: string }[]>(`/api/plugins/${encodeURIComponent(id)}/choices${qs({ key, account })}`),
 };

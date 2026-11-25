@@ -30,9 +30,11 @@ src/server/
   feeds/               source.ts (fetch any source kind), parse.ts (feedsmith → items), refresh.ts,
                        add.ts (preview/discovery/subscribe), html-source.ts (CSS rules + list auto-detection),
                        plugins.ts + plugin-api.ts, rsshub.ts, opml.ts, icons.ts,
+                       builtin/ (plugins that read with a signed-in 账号: zsxq.ts 知识星球, canvas.ts Canvas,
+                       jwb.ts 交我办 with jAccount single sign-on renewal),
                        wechat-bridge.ts (mirror we-mp-rss accounts as feeds)
   content/             sanitize.ts (the only HTML allow-list), extract.ts (site rule → CMS containers → Readability),
-                       rules/*.ts (per-site: wechat, zhihu, xiaohongshu, sspai), fulltext.ts, markdown.ts
+                       rules/*.ts (per-site: wechat, zhihu, xiaohongshu, sspai, zsxq), fulltext.ts, markdown.ts
   archive/             capture.ts (pipeline), assets.ts (images + attachments to disk), template.ts (offline page),
                        browser.ts (ego-browser capture: HTML + MHTML + screenshot), mhtml.ts, recheck.ts,
                        wayback.ts (Internet Archive: find the closest capture, unwrap it, archive it as a snapshot)
@@ -42,6 +44,19 @@ src/server/
                        outputs.ts (re-publish as RSS), auth.ts, content.ts (image proxy URL rewriting)
   translate/           engine.ts (Ollama / OpenAI-compatible / Anthropic, numbered-segment prompt), index.ts (job queue + cache),
                        summary.ts (key points, cached in the same table under `summary:<lang>`)
+  calendar/            班级日历: ics.ts (read / write iCalendar), canvas.ts (exams read out of the owner's Canvas
+                       announcements by the AI model, checked against the text and cached; planner due dates),
+                       merge.ts (everyone's items as counts, never names; course items only), feishu.ts (calendar v4
+                       sync, remembered in calendar_sync), store.ts, index.ts (refresh, .ics, sync every 3 hours)
+  accounts/            services.ts (the platforms Acorn signs in to: how a sign-in is obtained, checked, sent),
+                       browser-login.ts (sign in in the user's ego-browser, read the cookies), use.ts (which
+                       account a subscription reads with; the sign-in for a platform's own files, nothing else)
+  feeds/ (any source)  radar.ts (RSSHub radar rules: page address → routes; cached daily), hints.ts (feeds sites do not
+                       announce: GitHub, Reddit, Medium…), discover.ts feedLinks (links that say RSS, read to check),
+                       browser-read.ts (read / discover through the user's ego-browser: bot checks, script-filled pages),
+                       builtin/json.ts (JSON APIs mapped without code), builtin/watch.ts (page changes, plugin_state),
+                       builtin/inbox.ts + api/routes/inbox.ts (push addresses: POST /in/<key>)
+  util/proxy.ts        the outbound proxy (设置 → 网络; Node 24 http.setGlobalProxyFromEnv), network errors in words
   util/net.ts          addresses other devices can reach (LAN, Tailscale, public URL) for login links
   scheduler.ts         refresh loop, archive recheck, starred→archive sweep, Telegram digest, daily backup (croner)
   backup.ts            a second data directory: SQLite online backup + new snapshot folders copied once; never deletes
@@ -73,6 +88,17 @@ tests/                 vitest; fixtures are real pages saved from the web
 - **A web page source picks the wrong list** → edit the feed's `config.html` rule (item/title/link/date selectors,
   `selector@attr` for attributes). Preview with `acorn preview <url> --kind html` or the MCP tool `preview_source`.
 - **A source needs logic (JSON API, pagination, login)** → write a plugin in `plugins/` (see `docs/plugins.md`).
+- **A platform that only shows content to an account** → a built-in plugin in `src/server/feeds/builtin/` with
+  `account: "<service>"`, and its service (sign-in, `whoami`, `headers`) registered in `src/server/accounts/services.ts`.
+  The credential stays in the `accounts` table: the API only says who is signed in. A refused sign-in is
+  `ctx.loginExpired()`: the account turns 「登录已过期」 and its subscriptions wait for a new one instead of retrying.
+  Articles of such subscriptions are archived from the feed copy and never rechecked (their pages show the server a login).
+  Tests use stand-in servers (`tests/accounts.test.ts`, `tests/jwb.test.ts`).
+- **A source will not subscribe** → `previewSource` (feeds/add.ts) tries declared feeds, feedLinks, hints, RSSHub
+  radar, JSON, the page's list; a bot check is a `BotCheckError` (API `bot_check`), and `config.browser` reads the
+  subscription through ego-browser at every refresh. Unreachable from mainland China: the proxy (设置 → 网络).
+  New source types are built-in plugins (kind stays `plugin`; no schema change); a plugin's `ctx.state` persists per
+  subscription. Secret plugin params (a push key) stay out of the subscription's address and OPML. Tests: `tests/sources.test.ts`.
 - **A site blocks the server** → captures can go through the user's browser: `acorn archive <url> --browser`.
   On a captcha / login wall the page is handed to the user (ego-browser `handOff`) and listed at `/api/archives/pending`;
   after they pass it, `acorn resume <space id>` (or the banner in the web app) takes the page back and archives it.
@@ -115,6 +141,8 @@ feed / folder / view, optionally `before` a time, `upTo` an entry or `newerThan`
 archives (list/detail/POST capture/import/:id/snapshot/:id/recheck/:id/wayback/PATCH/DELETE),
 imports (list/POST file/preview/:id/items/:id/retry/PATCH/DELETE — moving in from other tools), export (ZIP, ?full=1),
 backup (status/POST run), highlights, search, settings,
-tokens, stats, logs, opml, digest, events (SSE), img (image proxy), translate (+/:id, /models, /test), summary, wechat-bridge (+/sync),
-addresses, login-link`. Text responses are gzipped for clients that accept it. One-time sign-in: `GET /login/<token>` (public; the token comes from `POST /api/login-link`). Archive files: `/files/archive/<path>`.
-Google Reader API: `/accounts/ClientLogin`, `/reader/api/0/*` (also under `/api/greader`). RSS out: `/out/*.xml?key=`.
+tokens, stats, logs, opml, digest, events (SSE), img (image proxy), translate (+/:id, /models, /test), summary, wechat-bridge (+/sync), accounts (list/POST token or cookie/browser sign-in
++/browser/:spaceId/:id/check/DELETE — never returns a credential), plugins/:id/choices,
+class-calendar (GET/PATCH, +/members POST/DELETE, /own-canvas, /sync, /link — classmates' links and the Feishu secret
+never come back out), addresses, login-link`. Class calendar: `/out/class-calendar.ics?key=` (a key of its own, not an API token). Text responses are gzipped for clients that accept it. One-time sign-in: `GET /login/<token>` (public; the token comes from `POST /api/login-link`). Archive files: `/files/archive/<path>`.
+Google Reader API: `/accounts/ClientLogin`, `/reader/api/0/*` (also under `/api/greader`). RSS out: `/out/*.xml?key=` (an API token, or the output key from `/api/outputs/key`, which opens /out only). Push: `/in/<key>` (public; the key is the permission). Network: `/api/network` (+/test).

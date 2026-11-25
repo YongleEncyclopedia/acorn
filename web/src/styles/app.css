@@ -2594,3 +2594,314 @@ kbd {
   flex: none;
   align-self: center;
 }
+
+/* 账号: connecting a platform (知识星球, Canvas…) in 设置 → 账号 and in 添加订阅 */
+.connect {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.connect-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.connect-row .field {
+  flex: 1;
+  min-width: 0;
+}
+.connect-row .lbl {
+  flex: none;
+  width: 36px;
+  font-size: 13px;
+  font-weight: 560;
+  color: var(--ink-2);
+}
+.connect-browser {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.connect-browser .btn {
+  flex: none;
+}
+.connect-help {
+  flex: 1 1 220px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+.connect-waiting {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.connect-waiting > span:first-child {
+  flex: 1 1 240px;
+}
+.connect-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.connect-manual summary {
+  width: fit-content;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.connect-manual summary:hover {
+  color: var(--ink);
+}
+.connect-manual[open] summary {
+  margin-bottom: 8px;
+}
+.connect-manual ol {
+  margin: 0 0 10px;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+.connect-manual > .btn {
+  margin-bottom: 10px;
+}
+.connect-error {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--danger);
+}
+.account-pick {
+  display: grid;
+  gap: 12px;
+}
+.account-name {
+  font-size: 14px;
+  font-weight: 560;
+}
+.account-badge {
+  margin-left: 8px;
+  vertical-align: 1px;
+}
+
+/* 添加订阅: other ways into a source (RSSHub routes, the browser, page watch), push addresses */
+.ways {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.way-head {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+.way-head .muted {
+  font-weight: 400;
+  margin-left: 6px;
+}
+.way-list {
+  display: grid;
+  gap: 4px;
+}
+.way-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  text-align: left;
+}
+.way-item:hover,
+.way-item:focus-visible {
+  background: var(--bg-hover);
+  outline: none;
+}
+.way-item .t {
+  font-size: 13.5px;
+  font-weight: 560;
+  flex: none;
+}
+.way-item .d {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.way-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.draft {
+  display: grid;
+  gap: 10px;
+}
+.draft .form-grid {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.push-info {
+  display: grid;
+  gap: 12px;
+}
+.push-ways {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+.push-ways ul {
+  margin: 6px 0 10px;
+  padding-left: 20px;
+}
+.push-ways code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-sunken);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.push-example {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 设置 → 班级日历 */
+.cal-card {
+  margin-top: 12px;
+}
+.cal-help {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+.bad-text {
+  color: var(--danger) !important;
+}
+.cal-more summary,
+.cal-steps summary {
+  width: fit-content;
+  font-size: 13.5px;
+  font-weight: 560;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.cal-more summary:hover,
+.cal-steps summary:hover {
+  color: var(--ink);
+}
+.cal-more textarea.field {
+  min-height: 72px;
+}
+.cal-steps ol {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+.cal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.cal-list > li {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+}
+.cal-day {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.cal-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.cal-list ul li {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.cal-time {
+  flex: none;
+  width: 92px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.cal-kind {
+  min-width: 0;
+  color: var(--ink);
+}
+.cal-kind.k-exam {
+  font-weight: 600;
+}
+.cal-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+}
+.cal-link code {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+}
+.cal-feishu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.cal-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.cal-actions .cal-help {
+  margin: 0;
+}
+@media (max-width: 560px) {
+  .cal-list > li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .cal-time {
+    width: 84px;
+  }
+  .cal-feishu {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -72,12 +72,20 @@ describe("export", () => {
     expect(names.some((n) => n.endsWith("source.html") || n === "acorn.db")).toBe(false);
   });
 
-  it("exports a full copy that is a data directory", async () => {
+  it("exports a full copy that is a data directory, without the accounts' sign-ins", async () => {
+    // signed in twice: the first token lingers in the database's free space unless the copy is rebuilt
+    app.accounts.save("zsxq", "https://wx.zsxq.com", "小松", { token: "zsxq-OLDER-SECRET-8" });
+    app.accounts.save("zsxq", "https://wx.zsxq.com", "小松", { token: "zsxq-SECRET-9" });
     const files = await download("/api/export?full=1");
     const names = [...files.keys()];
     expect(names).toContain("acorn.db");
     expect(names.some((n) => /^archive\/\d{4}\/\d{2}\/[^/]+\/\d{8}-\d{6}\/source\.html$/.test(n))).toBe(true);
     expect(names.some((n) => /^archive\/.*\/article\.html$/.test(n))).toBe(true);
-    expect(files.get("acorn.db")!.subarray(0, 15).toString()).toBe("SQLite format 3");
+    const db = files.get("acorn.db")!;
+    expect(db.subarray(0, 15).toString()).toBe("SQLite format 3");
+    expect(db.includes("zsxq-SECRET-9")).toBe(false);
+    expect(db.includes("zsxq-OLDER-SECRET-8")).toBe(false);
+    // the library itself still has it
+    expect(app.accounts.credential(app.accounts.list()[0].id)!.token).toBe("zsxq-SECRET-9");
   });
 });

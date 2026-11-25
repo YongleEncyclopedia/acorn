@@ -16,6 +16,7 @@ import { sha1 } from "../../util/text.ts";
 import { originOf } from "../../util/url.ts";
 import { ruleFor } from "../../content/rules/index.ts";
 import { sniffImage } from "../../archive/assets.ts";
+import { assetHeaders } from "../../accounts/use.ts";
 
 const MIME: Record<string, string> = {
   html: "text/html; charset=utf-8",
@@ -261,9 +262,11 @@ export function registerArchives(r: Hono, app: App): void {
     }
     const rule = ref ? ruleFor(ref) : ruleFor(u);
     const referers = [...new Set([rule?.imageReferer ? rule.imageReferer(ref || u) : ref ? `${originOf(ref)}/` : null, null])];
+    // a picture among a signed-in platform's own files (Canvas) loads with that sign-in
+    const signIn = assetHeaders(app, u) ?? undefined;
     for (const referer of referers) {
       try {
-        const res = await httpGet(u, { userAgent: app.cfg.pageUserAgent, referer, accept: "image/avif,image/webp,image/*,*/*;q=0.8", maxBytes: 25 * 1024 * 1024, timeoutMs: 25_000 });
+        const res = await httpGet(u, { userAgent: app.cfg.pageUserAgent, referer, headers: signIn, accept: "image/avif,image/webp,image/*,*/*;q=0.8", maxBytes: 25 * 1024 * 1024, timeoutMs: 25_000 });
         if (!res.ok) continue;
         const declared = res.contentType.split(";")[0].trim().toLowerCase();
         const type = sniffImage(res.body) || (declared.startsWith("image/") ? declared : null);
