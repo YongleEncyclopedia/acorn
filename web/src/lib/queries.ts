@@ -2,6 +2,7 @@ import { QueryClient, useInfiniteQuery, useMutation, useQuery, useQueryClient, t
 import { api, type EntryQuery } from "./api.ts";
 import type { Bootstrap, Entry, EntrySummary, Page } from "../../../src/shared/types.ts";
 import { toast, toastError } from "./store.ts";
+import { patchEntry, pending, pendingPage } from "./outbox.ts";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,7 +26,8 @@ export function useBootstrap() {
 export function useEntries(q: EntryQuery, enabled = true) {
   return useInfiniteQuery({
     queryKey: keys.entries(q),
-    queryFn: ({ pageParam }) => api.entries(q, pageParam),
+    // changes made offline and not yet sent show in the list as well
+    queryFn: ({ pageParam }) => api.entries(q, pageParam).then(pendingPage),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
     enabled,
@@ -34,7 +36,7 @@ export function useEntries(q: EntryQuery, enabled = true) {
 }
 
 export function useEntry(id: number | null) {
-  return useQuery({ queryKey: keys.entry(id ?? 0), queryFn: () => api.entry(id!), enabled: !!id, staleTime: 5 * 60_000 });
+  return useQuery({ queryKey: keys.entry(id ?? 0), queryFn: () => api.entry(id!).then(pending), enabled: !!id, staleTime: 5 * 60_000 });
 }
 
 /** Apply a change to an entry everywhere it is cached (lists + detail). */
@@ -62,7 +64,8 @@ function bumpCounts(qc: QueryClient, feedId: number, unreadDelta: number, starDe
 export function useEntryActions() {
   const qc = useQueryClient();
   const setRead = useMutation({
-    mutationFn: ({ entry, read }: { entry: EntrySummary; read: boolean }) => api.patchEntry(entry.id, { read }),
+    // without a connection the change waits on this device (lib/outbox.ts) and the list keeps showing it
+    mutationFn: ({ entry, read }: { entry: EntrySummary; read: boolean }) => patchEntry(entry.id, { read }),
     onMutate: ({ entry, read }) => {
       if (!!entry.readAt === read) return;
       patchEntryCaches(qc, entry.id, { readAt: read ? Date.now() : null });
@@ -75,19 +78,19 @@ export function useEntryActions() {
     },
   });
   const setStar = useMutation({
-    mutationFn: ({ entry, starred }: { entry: EntrySummary; starred: boolean }) => api.patchEntry(entry.id, { starred }),
+    mutationFn: ({ entry, starred }: { entry: EntrySummary; starred: boolean }) => patchEntry(entry.id, { starred }),
     onMutate: ({ entry, starred }) => {
       patchEntryCaches(qc, entry.id, { starredAt: starred ? Date.now() : null });
       bumpCounts(qc, entry.feedId, 0, starred ? 1 : -1);
     },
-    onSuccess: (_d, { starred }) => {
+    onSuccess: (how, { starred }) => {
       const b = qc.getQueryData<Bootstrap>(keys.bootstrap);
-      if (starred && b?.settings.archiveOnStar) toast("已加入稍后读，正在入藏…");
+      if (starred && b?.settings.archiveOnStar) toast(how === "queued" ? "已加入稍后读，联网后同步并入藏" : "已加入稍后读，正在入藏…");
     },
     onError: toastError,
   });
   const setProgress = useMutation({
-    mutationFn: ({ id, progress }: { id: number; progress: number }) => api.patchEntry(id, { progress }),
+    mutationFn: ({ id, progress }: { id: number; progress: number }) => patchEntry(id, { progress }),
     onMutate: ({ id, progress }) => patchEntryCaches(qc, id, { progress }),
   });
   return { setRead, setStar, setProgress };

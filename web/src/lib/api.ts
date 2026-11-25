@@ -14,6 +14,7 @@ import type {
   Folder,
   FullTextMode,
   Highlight,
+  OfflineAssets,
   HighlightColor,
   ImportBatch,
   ImportItem,
@@ -30,6 +31,7 @@ import type {
   WechatBridgeStatus,
   WechatBridgeSync,
 } from "../../../src/shared/types.ts";
+import { noteAnswer } from "./connection.ts";
 
 export class ApiError extends Error {
   status: number;
@@ -53,8 +55,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
     });
   } catch {
+    noteAnswer(true);
     throw new ApiError(0, "offline", "连不上松果服务，请检查网络", {});
   }
+  noteAnswer(res.headers.has("x-acorn-cached"));
   const ct = res.headers.get("content-type") || "";
   const data = ct.includes("json") ? await res.json().catch(() => ({})) : await res.text();
   if (!res.ok) {
@@ -86,6 +90,22 @@ export interface EntryQuery {
   q?: string;
 }
 
+type ListTarget = { view: EntryView } | { feed: number } | { folder: number };
+
+/** 未读 is a filter already, and 稍后读, 在读 and 已入藏 are kept regardless of read state: the others can hide what is read. */
+export const canFilterUnread = (t: ListTarget): boolean => !("view" in t) || t.view === "today" || t.view === "all";
+
+/** The query a list is fetched with. The offline pack builds the same one, so what it stores is what the list asks for. */
+export function listQuery(t: ListTarget, how: { unreadOnly: boolean; order: "new" | "old" }): EntryQuery {
+  return { ...t, unread: (canFilterUnread(t) && how.unreadOnly) || undefined, order: how.order === "old" ? "old" : undefined };
+}
+
+/** The address of a page of a list (the offline pack walks a list through the same addresses). */
+export const entriesPath = (q: EntryQuery, cursor?: string | null): string => `/api/entries${qs({ ...q, cursor, limit: 40 })}`;
+
+/** A picture through the server's image proxy, the way the server writes it into articles (src/server/api/content.ts). */
+export const imageProxy = (url: string, referer?: string | null): string => `/api/img?u=${encodeURIComponent(url)}${referer ? `&r=${encodeURIComponent(referer)}` : ""}`;
+
 export interface AddFeedBody {
   input: string;
   kind?: FeedKind;
@@ -106,7 +126,7 @@ export const api = {
   bootstrap: () => get<Bootstrap>("/api/bootstrap"),
   counts: () => get<Counts>("/api/counts"),
 
-  entries: (q: EntryQuery, cursor?: string | null) => get<Page<EntrySummary>>(`/api/entries${qs({ ...q, cursor, limit: 40 })}`),
+  entries: (q: EntryQuery, cursor?: string | null) => get<Page<EntrySummary>>(entriesPath(q, cursor)),
   entry: (id: number) => get<Entry>(`/api/entries/${id}`),
   patchEntry: (id: number, body: { read?: boolean; starred?: boolean; progress?: number }) => patch<EntrySummary>(`/api/entries/${id}`, body),
   fulltext: (id: number) => post<{ ok: boolean; error?: string; entry: Entry }>(`/api/entries/${id}/fulltext`),
@@ -183,4 +203,5 @@ export const api = {
   logs: () => get<{ at: number; level: string; scope: string; msg: string }[]>("/api/logs"),
   digestPreview: () => get<{ html: string; configured: boolean }>("/api/digest/preview"),
   digestSend: () => post<{ ok: boolean }>("/api/digest/send"),
+  offlineAssets: () => get<OfflineAssets>("/api/offline/assets"),
 };

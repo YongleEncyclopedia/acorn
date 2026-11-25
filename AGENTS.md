@@ -51,6 +51,7 @@ src/server/
 src/shared/types.ts    API types shared by server and web — change both sides together
 src/shared/translate.ts which article blocks get translated, language detection (runs on linkedom and in the browser)
 src/shared/article.ts  what the reader works out before setting an article: Latin-script paragraphs, the outline
+src/shared/offline.ts  the offline pack: which pictures an article needs, the changes a device keeps while offline
 src/client/client.ts   HTTP client used by the CLI and MCP server
 src/cli/main.ts        `acorn` CLI
 src/mcp/server.ts      MCP server (stdio)
@@ -61,6 +62,10 @@ web/src/               React 19 + TanStack Query + wouter; views/*, components/*
                        through /api/settings instead
   lib/shell.ts         document title, focus mode (专注阅读), view transitions
   fonts.ts             the reading fonts, loaded as a separate stylesheet so they do not block the first paint
+  lib/offline.ts       离线包: stores lists, articles, pictures, the app and its reading font on the device;
+                       web/public/sw.js answers from them when the server cannot be reached
+  lib/outbox.ts        read / 稍后读 / progress changed offline: kept on the device, sent when the server answers again
+  lib/connection.ts    whether the server is answering (the service worker marks stored answers `x-acorn-cached`)
 plugins/               user plugins (TypeScript, hot-reloaded)
 tests/                 vitest; fixtures are real pages saved from the web
 ```
@@ -94,6 +99,10 @@ tests/                 vitest; fixtures are real pages saved from the web
 - **Keyboard shortcut** → register it with `useHotkeys` next to what it acts on, and list it in
   `web/src/components/Shortcuts.tsx` (the `?` sheet and the settings page render that list).
   Anything that opens on top of the page calls `useLayer(onEscape)`; a dialog also gets `useFocusTrap`.
+- **Offline reading (离线包)** → the pack stores answers at the exact addresses the app asks for later, so new lists
+  and pictures must use the helpers in `web/src/lib/api.ts` (`listQuery`, `entriesPath`, `imageProxy`) or reading
+  offline misses them. The service worker keeps one copy of the app page (under `/`), the pack in its own cache, and
+  answers a missing `srcset` size with the stored picture. Browsers only run it on https (or localhost).
 - **Article typography** → `web/src/styles/reader.css`. Justification and the two-character indent apply to
   Chinese paragraphs only: `markScripts` (src/shared/article.ts) tags Latin-script paragraphs with `data-latin`.
 - **A list query gets slow** → `EntryStore.listSql` builds every list. The 未读 and 在读 lists rely on partial
@@ -115,6 +124,6 @@ feed / folder / view, optionally `before` a time, `upTo` an entry or `newerThan`
 archives (list/detail/POST capture/import/:id/snapshot/:id/recheck/:id/wayback/PATCH/DELETE),
 imports (list/POST file/preview/:id/items/:id/retry/PATCH/DELETE — moving in from other tools), export (ZIP, ?full=1),
 backup (status/POST run), highlights, search, settings,
-tokens, stats, logs, opml, digest, events (SSE), img (image proxy), translate (+/:id, /models, /test), summary, wechat-bridge (+/sync),
+tokens, stats, logs, opml, digest, events (SSE), img (image proxy), translate (+/:id, /models, /test), summary, wechat-bridge (+/sync), offline/assets (the app files for the offline pack),
 addresses, login-link`. Text responses are gzipped for clients that accept it. One-time sign-in: `GET /login/<token>` (public; the token comes from `POST /api/login-link`). Archive files: `/files/archive/<path>`.
 Google Reader API: `/accounts/ClientLogin`, `/reader/api/0/*` (also under `/api/greader`). RSS out: `/out/*.xml?key=`.

@@ -15,6 +15,8 @@ import { Layout } from "./views/Layout.tsx";
 import { StreamPage } from "./views/StreamPage.tsx";
 import { SearchPage, SearchPalette } from "./views/Search.tsx";
 import { VerifyBanner } from "./components/VerifyBanner.tsx";
+import { OfflineChip } from "./components/OfflineChip.tsx";
+import { useOutboxSync } from "./lib/outbox.ts";
 import { useHotkeys } from "./lib/hotkeys.ts";
 import { layerOpen } from "./lib/layers.ts";
 import { toast, ui } from "./lib/store.ts";
@@ -173,6 +175,8 @@ function Authed() {
   const boot = useBootstrap();
   const [path] = useLocation();
   useServerEvents(true);
+  // read, 稍后读 and progress changed offline go to the server once it answers again
+  useOutboxSync();
   const theme = boot.data?.settings.reader.theme;
   useEffect(() => {
     if (!theme) return;
@@ -226,6 +230,7 @@ function Authed() {
       <ShortcutSheet />
       <AddSourceGate />
       <VerifyBanner />
+      <OfflineChip />
     </>
   );
 }

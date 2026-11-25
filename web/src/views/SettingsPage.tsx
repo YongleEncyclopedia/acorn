@@ -3,6 +3,8 @@ import { Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Download, HardDrive, KeyRound, LogOut, Menu as MenuIcon, Plus, Rss, ScrollText, Send, Smartphone, Trash2 } from "lucide-react";
 import { Layout } from "./Layout.tsx";
+import { OfflineSettings } from "./OfflineSettings.tsx";
+import { forgetStored } from "../lib/offline.ts";
 import { FontPicker, ThemePicker, usePrefs } from "./ReaderPrefs.tsx";
 import { api } from "../lib/api.ts";
 import { keys, useBootstrap } from "../lib/queries.ts";
@@ -459,6 +461,7 @@ const SECTIONS: [id: string, label: string][] = [
   ["translate", "翻译与要点"],
   ["wechat", "微信公众号"],
   ["devices", "多设备"],
+  ["offline", "离线阅读"],
   ["agents", "Agent 与令牌"],
   ["digest", "每日摘要"],
   ["data", "数据"],
@@ -778,6 +781,8 @@ export function SettingsPage() {
             </div>
           </section>
 
+          <OfflineSettings s={s} />
+
           <section className="settings-section" id="agents">
             <h2>Agent 与 API 令牌</h2>
             <div className="settings-card">
@@ -938,6 +943,8 @@ export function SettingsPage() {
                   className="btn sm danger"
                   onClick={async () => {
                     await api.logout();
+                    // what this device stored to read offline is the library's too
+                    await forgetStored().catch(() => undefined);
                     qc.clear();
                     window.location.href = "/";
                   }}
