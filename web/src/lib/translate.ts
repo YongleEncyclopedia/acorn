@@ -148,7 +148,10 @@ export interface ReaderTranslation extends TranslationState {
   toggle: () => void;
 }
 
-/** Translation for one open article: off by default, on automatically for foreign-language text when the user wants that. */
+/**
+ * Translation for one open article: off by default, on automatically for foreign-language text when the user wants
+ * that, and for an article translated before (most of it is in the cache: it shows at once, no model is asked again).
+ */
 export function useReaderTranslation(article: RefObject<ArticleHandle | null>, opts: { id: string; html: string; title: string; cfg: TranslateSettings | undefined }): ReaderTranslation {
   const { id, html, title, cfg } = opts;
   const lang = cfg?.targetLang || "zh-CN";
@@ -159,7 +162,22 @@ export function useReaderTranslation(article: RefObject<ArticleHandle | null>, o
   useEffect(() => {
     setForeign(isForeign(`${title}\n${article.current?.el?.textContent || ""}`, lang));
   }, [html, title, lang, article]);
-  const on = manual ?? (!!cfg?.auto && foreign);
+  const [before, setBefore] = useState(false);
+  useEffect(() => {
+    setBefore(false);
+    if (!foreign || cfg?.auto) return;
+    const texts = article.current?.blockTexts(lang) || [];
+    if (!texts.length) return;
+    let live = true;
+    api
+      .translationKnown(texts, lang)
+      .then((r) => live && setBefore(r.cached > 0 && r.cached >= r.total * 0.3))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [id, html, foreign, lang, cfg?.auto, article]);
+  const on = manual ?? ((!!cfg?.auto && foreign) || before);
   const state = useTranslation(() => article.current?.blockTexts(lang) || [], { key: `${id}\n${html}`, title, enabled: on, lang });
   const shown = useMemo(() => (on ? { map: state.map, display, lang } : null), [on, state.map, display, lang]);
   return { ...state, on, foreign, lang, display, shown, toggle: () => setManual(!on) };

@@ -174,6 +174,13 @@ describe("translation flow", () => {
     expect(calls.length).toBe(before + 1);
   });
 
+  it("says how much of an article is translated already, without asking the model", async () => {
+    const before = calls.length;
+    const known = await api<{ total: number; cached: number }>("/api/translate/known", { method: "POST", body: JSON.stringify({ texts: ["Hello world", "Never translated", "Hello world", ""] }) });
+    expect(known).toEqual({ total: 2, cached: 1 });
+    expect(calls.length).toBe(before);
+  });
+
   it("explains a missing local model", async () => {
     await configure({ model: "llama-not-pulled" });
     const job = await translate(["Something new"]);

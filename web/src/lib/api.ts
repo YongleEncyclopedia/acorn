@@ -153,6 +153,7 @@ export const api = {
   refreshAll: () => post<{ queued: number }>("/api/feeds/refresh"),
   translate: (texts: string[], lang?: string, fresh?: boolean) => post<TranslationJob>("/api/translate", { texts, lang, fresh }),
   translation: (id: string) => get<TranslationJob>(`/api/translate/${id}`),
+  translationKnown: (texts: string[], lang?: string) => post<{ total: number; cached: number }>("/api/translate/known", { texts, lang }),
   summary: (body: { entryId?: number; archiveId?: number; generate?: boolean; fresh?: boolean }) => post<{ summary: ArticleSummary | null }>("/api/summary", body),
   addresses: () => get<{ origins: { label: string; origin: string }[] }>("/api/addresses"),
   loginLink: () => post<{ path: string; expiresAt: number; origins: { label: string; origin: string }[] }>("/api/login-link"),

@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { App } from "../../app.ts";
 import type { ModelTest, TranslateSettings } from "../../../shared/types.ts";
 import { isMaskedKey, keyTarget, REASONING_CHOICES } from "../../../shared/ai.ts";
-import { getTranslation, requestTranslation } from "../../translate/index.ts";
+import { getTranslation, knownTranslations, requestTranslation } from "../../translate/index.ts";
 import { parseReply, TranslateError, trySentence } from "../../translate/engine.ts";
 import { listModels, modelInfo } from "../../translate/models.ts";
 import { summarize } from "../../translate/summary.ts";
@@ -38,6 +38,11 @@ function draftSettings(app: App, body: unknown): TranslateSettings {
 }
 
 export function registerTranslate(r: Hono, app: App): void {
+  // what is translated already, asking no model (a reader reopening an article)
+  r.post("/api/translate/known", async (c) => {
+    const body = REQUEST.parse(await c.req.json());
+    return c.json(knownTranslations(app, body.texts, body.lang));
+  });
   r.post("/api/translate", async (c) => {
     const body = REQUEST.parse(await c.req.json());
     return c.json(requestTranslation(app, body.texts, { lang: body.lang, fresh: body.fresh }));
