@@ -304,7 +304,7 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
         <div className="way-group">
           <div className="way-head">
             RSSHub 可以订阅这个页面
-            {(!rsshubBase || /rsshub\.app/.test(rsshubBase)) && <span className="muted">（公共的 rsshub.app 已限制访问，要在 设置 → RSSHub 填自建实例）</span>}
+            {(!rsshubBase || /rsshub\.app/.test(rsshubBase)) && <span className="muted">（公共的 RSSHub 常被限流，可以在 设置 → 高级 里换成自己部署的）</span>}
           </div>
           <div className="way-list">
             {preview.rsshub.slice(0, 8).map((m) => (

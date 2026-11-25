@@ -39,7 +39,7 @@ export function NetworkSection({ s, save }: { s: Settings; save: (patch: Partial
         <div className="setting-row stack">
           <div className="txt">
             <b>代理</b>
-            <span>在中国大陆，日经、Reddit、YouTube、OpenAI 这些境外网站要经过代理才连得上。松果的抓取、图片、翻译都走这里设的代理；本机的服务（Ollama、RSSHub）和下面的例外直连。</span>
+            <span>在中国大陆，境外网站要经过代理才连得上。松果的抓取、图片、翻译都走这里设的代理；本机的服务（Ollama、RSSHub）和下面的例外直连。</span>
           </div>
           <Segmented
             value={n.proxy}

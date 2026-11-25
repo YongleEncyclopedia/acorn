@@ -47,7 +47,7 @@ src/server/
                        models.ts (a service's models and each one's context / reasoning controls / price, asked before saving),
                        catalog.ts (models.dev, fills in what services leave out; cached daily in data/cache),
                        wire.ts (one reasoning choice → each service's own fields)
-  calendar/            班级日历: ics.ts (read / write iCalendar), canvas.ts (exams read out of the owner's Canvas
+  calendar/            班级日历 (no UI for now; the server, its API and the .ics link stay): ics.ts (read / write iCalendar), canvas.ts (exams read out of the owner's Canvas
                        announcements by the AI model, checked against the text and cached; planner due dates),
                        merge.ts (everyone's items as counts, never names; course items only), feishu.ts (calendar v4
                        sync, remembered in calendar_sync), store.ts, index.ts (refresh, .ics, sync every 3 hours)
@@ -132,6 +132,9 @@ tests/                 vitest; fixtures are real pages saved from the web
   A new AI service is a preset in `src/shared/ai.ts`, plus a wire in `translate/wire.ts` when it steers reasoning
   its own way (`tests/ai.test.ts` lists what each service is sent). A saved API key only goes to the address it was
   saved for (`keyTarget`).
+- **Settings page** → sections are listed in `SECTIONS` (web/src/views/SettingsPage.tsx). What most people never touch
+  (RSSHub address, AI assistants / API tokens) sits folded under 高级; accounts are connected where a subscription
+  needs one (添加订阅), and 设置 → 账号 only lists those already connected.
 - **UI change** → `web/src`; keep colors as CSS variables in `styles/tokens.css` (5 themes must stay readable:
   `--ink-3` is text and keeps 4.5:1 against the backgrounds, `--ink-4` is decoration only);
   check desktop (three panes) and mobile (≤ 760px, tab bar) layouts.

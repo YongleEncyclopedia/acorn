@@ -7,7 +7,6 @@ import { OfflineSettings } from "./OfflineSettings.tsx";
 import { forgetStored } from "../lib/offline.ts";
 import { NetworkSection } from "./NetworkSettings.tsx";
 import { AccountsSettings } from "./AccountsSettings.tsx";
-import { ClassCalendarSettings } from "./ClassCalendarSettings.tsx";
 import { AiSettings } from "./AiSettings.tsx";
 import { FontPicker, ThemePicker, usePrefs } from "./ReaderPrefs.tsx";
 import { api } from "../lib/api.ts";
@@ -94,7 +93,7 @@ function Tokens() {
       ))}
       <div className="setting-row">
         <div className="txt">
-          <span>令牌用于 Agent、脚本和第三方阅读器。命令行与 MCP 会自动使用 data/.cli-token，不需要手动创建。</span>
+          <span>给脚本和其他程序用的访问令牌。上面的 AI 助手和命令行会自动配好，不用手动创建。</span>
         </div>
         <button className="btn sm" onClick={create}>
           <Plus size={14} />
@@ -114,6 +113,9 @@ function Tokens() {
 }
 
 /** WeChat Official Accounts arrive through we-mp-rss; Acorn mirrors its account list as feeds. */
+/** Where we-mp-rss listens when started as its README says (services/we-mp-rss). */
+const WECHAT_DEFAULT = "http://127.0.0.1:8001";
+
 function WechatBridge({ s, save }: { s: Settings; save: (patch: Partial<Settings>) => Promise<void> }) {
   const qc = useQueryClient();
   const cfg = s.wechatBridge;
@@ -135,10 +137,10 @@ function WechatBridge({ s, save }: { s: Settings; save: (patch: Partial<Settings
       setSyncing(false);
     }
   };
-  const saveUrl = async () => {
-    await save({ wechatBridge: { ...cfg, url: url || "" } });
+  const connect = async (address: string) => {
+    await save({ wechatBridge: { ...cfg, url: address } });
     setUrl(null);
-    if (url) await sync();
+    if (address) await sync();
   };
   const accounts = status.data?.accounts || [];
   const synced = accounts.filter((a) => a.feedId).length;
@@ -151,18 +153,32 @@ function WechatBridge({ s, save }: { s: Settings; save: (patch: Partial<Settings
       <div className="settings-card">
         <div className="setting-row stack">
           <div className="txt">
-            <b>we-mp-rss 地址</b>
-            <span>公众号经 we-mp-rss 转成订阅源：在它的后台扫码授权、按名字添加公众号，松果每 10 分钟把新加的公众号自动订阅进来，正文直接来自订阅源，不会撞上微信的验证页。</span>
+            <b>订阅公众号</b>
+            <span>微信不对外提供公众号的订阅源，要借助一个开源的「公众号转换服务」（we-mp-rss）。它装在这台电脑上：你用微信扫码授权、按名字添加公众号，松果每 10 分钟把新加的公众号自动收进来。</span>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input className="field mono" placeholder="http://127.0.0.1:8001" value={url ?? cfg.url} onChange={(e) => setUrl(e.target.value)} />
-            <button className="btn" disabled={url === null} onClick={() => saveUrl().catch(toastError)}>
-              保存
-            </button>
-          </div>
+          {!cfg.url && (
+            <>
+              <ol className="wechat-steps">
+                <li>
+                  安装转换服务（只要一次）：按{" "}
+                  <a href="https://github.com/rachelos/we-mp-rss" target="_blank" rel="noreferrer">
+                    we-mp-rss 主页
+                  </a>
+                  的说明用 Docker 启动它。
+                </li>
+                <li>打开它的后台（默认是 {WECHAT_DEFAULT}），用微信扫码授权，再按名字添加想看的公众号。</li>
+                <li>回到这里点「连接」。</li>
+              </ol>
+              <div>
+                <button className="btn primary" onClick={() => connect(url || WECHAT_DEFAULT).catch(toastError)}>
+                  连接
+                </button>
+              </div>
+            </>
+          )}
           {stale && (
             <div className="callout warn">
-              公众号已经 {Math.round((Date.now() - last!) / 3_600_000)} 小时没有新文章了。多半是 we-mp-rss 里的微信读书或公众平台登录过期了：打开 we-mp-rss，在「授权管理」里重新扫码。
+              公众号已经 {Math.round((Date.now() - last!) / 3_600_000)} 小时没有新文章了，多半是转换服务里的微信授权过期了：打开转换服务的后台，在「授权管理」里重新扫码。
             </div>
           )}
           {cfg.url && (
@@ -170,22 +186,31 @@ function WechatBridge({ s, save }: { s: Settings; save: (patch: Partial<Settings
               {status.isLoading ? (
                 <span className="muted">正在连接…</span>
               ) : status.isError ? (
-                <span className="bad">连不上 we-mp-rss：{(status.error as Error).message}</span>
+                <span className="bad">连不上公众号转换服务：{(status.error as Error).message}</span>
               ) : (
                 <span>
-                  已连接 · {accounts.length} 个公众号{accounts.length ? `，${synced} 个已在松果` : "，先去 we-mp-rss 里添加"}
+                  已连接 · {accounts.length} 个公众号{accounts.length ? `，${synced} 个已在松果` : "，先去转换服务的后台添加"}
                   {last ? ` · 最近一篇 ${relTime(last)}` : ""}
                 </span>
               )}
               <span className="grow" />
               <a className="btn sm ghost" href={cfg.url} target="_blank" rel="noreferrer">
-                打开 we-mp-rss
+                打开转换服务
               </a>
               <button className="btn sm" disabled={syncing || status.isError} onClick={sync}>
                 {syncing ? "同步中…" : "立即同步"}
               </button>
             </div>
           )}
+          <details className="ai-advanced">
+            <summary>{cfg.url ? "转换服务的地址" : "转换服务不在默认地址？"}</summary>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input className="field mono" placeholder={WECHAT_DEFAULT} value={url ?? cfg.url} onChange={(e) => setUrl(e.target.value)} />
+              <button className="btn" disabled={url === null} onClick={() => connect(url || "").catch(toastError)}>
+                保存
+              </button>
+            </div>
+          </details>
         </div>
         <div className="setting-row">
           <div className="txt">
@@ -335,20 +360,18 @@ function mcpCommand(b: Bootstrap): string {
 const SECTIONS: [id: string, label: string][] = [
   ["appearance", "阅读外观"],
   ["habits", "阅读习惯"],
-  ["rsshub", "RSSHub"],
   ["network", "网络"],
   ["accounts", "账号"],
-  ["class-calendar", "班级日历"],
   ["translate", "翻译与要点"],
   ["wechat", "微信公众号"],
   ["devices", "多设备"],
   ["offline", "离线阅读"],
-  ["agents", "Agent 与令牌"],
   ["digest", "每日摘要"],
   ["data", "数据"],
   ["backup", "备份与导出"],
   ["account", "账户"],
   ["shortcuts", "快捷键"],
+  ["advanced", "高级"],
 ];
 
 /** Which section the page is scrolled to. The pane scrolls on desktop, the page itself on a phone. */
@@ -401,6 +424,9 @@ function SectionNav({ active }: { active: string }) {
             aria-current={active === id ? "true" : undefined}
             onClick={(e) => {
               e.preventDefault();
+              // 高级 is folded: going there opens it
+              const more = id === "advanced" ? (document.getElementById("advanced-more") as HTMLDetailsElement | null) : null;
+              if (more) more.open = true;
               document.getElementById(id)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
               window.history.replaceState(window.history.state, "", `#${id}`);
             }}
@@ -590,35 +616,9 @@ export function SettingsPage() {
             </div>
           </section>
 
-          <section className="settings-section" id="rsshub">
-            <h2>RSSHub</h2>
-            <div className="settings-card">
-              <div className="setting-row stack">
-                <div className="txt">
-                  <b>实例地址</b>
-                  <span>公共实例 rsshub.app 时常被限流。自建一个（比如 Docker 跑在这台电脑上）最稳定，也能填你自己的 B 站、微博 Cookie。</span>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input className="field mono" placeholder="https://rsshub.app" value={rsshub ?? s.rsshubBase} onChange={(e) => setRsshub(e.target.value)} />
-                  <button className="btn" disabled={rsshub === null} onClick={() => save({ rsshubBase: rsshub || "" }).then(() => (setRsshub(null), toast("已保存")))}>
-                    保存
-                  </button>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input className="field mono" placeholder="访问密钥 ACCESS_KEY（可选）" value={rsshubKey ?? s.rsshubKey} onChange={(e) => setRsshubKey(e.target.value)} />
-                  <button className="btn" disabled={rsshubKey === null} onClick={() => save({ rsshubKey: rsshubKey || "" }).then(() => (setRsshubKey(null), toast("已保存")))}>
-                    保存
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-
           <NetworkSection s={s} save={save} />
 
           <AccountsSettings />
-
-          <ClassCalendarSettings boot={boot.data} />
 
           <AiSettings s={s} save={save} />
 
@@ -669,20 +669,6 @@ export function SettingsPage() {
           </section>
 
           <OfflineSettings s={s} />
-
-          <section className="settings-section" id="agents">
-            <h2>Agent 与 API 令牌</h2>
-            <div className="settings-card">
-              <div className="setting-row stack">
-                <div className="txt">
-                  <b>让 Claude Code / Hermes 接管</b>
-                  <span>项目根目录的 AGENTS.md 写清了一切。也可以把松果加为 MCP 服务器：</span>
-                </div>
-                <CodeLine text={mcpCommand(boot.data)} />
-              </div>
-              <Tokens />
-            </div>
-          </section>
 
           <section className="settings-section" id="digest">
             <h2>每日摘要 · Telegram</h2>
@@ -848,6 +834,41 @@ export function SettingsPage() {
             <div className="settings-card" style={{ padding: "6px 18px 14px" }}>
               <ShortcutList />
             </div>
+          </section>
+
+          <section className="settings-section" id="advanced">
+            <h2>高级</h2>
+            <details className="settings-more" id="advanced-more">
+              <summary>RSSHub 服务地址，给 AI 助手和其他程序用的接口。一般用不到</summary>
+              <div className="settings-card">
+                <div className="setting-row stack">
+                  <div className="txt">
+                    <b>RSSHub 服务地址</b>
+                    <span>B 站、微博、知乎这类网站自己不提供订阅源，松果借助开源服务 RSSHub 来订阅它们。默认用公共服务，它常被限流；这类订阅经常失败时，在这里换成自己部署的 RSSHub。</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input className="field mono" placeholder="https://rsshub.app" value={rsshub ?? s.rsshubBase} onChange={(e) => setRsshub(e.target.value)} />
+                    <button className="btn" disabled={rsshub === null} onClick={() => save({ rsshubBase: rsshub || "" }).then(() => (setRsshub(null), toast("已保存")))}>
+                      保存
+                    </button>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input className="field mono" placeholder="访问密钥 ACCESS_KEY（可选）" value={rsshubKey ?? s.rsshubKey} onChange={(e) => setRsshubKey(e.target.value)} />
+                    <button className="btn" disabled={rsshubKey === null} onClick={() => save({ rsshubKey: rsshubKey || "" }).then(() => (setRsshubKey(null), toast("已保存")))}>
+                      保存
+                    </button>
+                  </div>
+                </div>
+                <div className="setting-row stack">
+                  <div className="txt">
+                    <b>让 AI 助手使用松果</b>
+                    <span>和「翻译与要点」是两回事：那里是松果调用 AI 模型；这里是让 Claude Code 这类 AI 助手来用松果，替你整理订阅、查找文章。在终端运行下面这行就能接上。</span>
+                  </div>
+                  <CodeLine text={mcpCommand(boot.data)} />
+                </div>
+                <Tokens />
+              </div>
+            </details>
           </section>
           <p className="muted" style={{ textAlign: "center", fontSize: 12.5, marginTop: 24 }}>
             松果 Acorn {boot.data.version} · 完全属于你
