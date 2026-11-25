@@ -91,19 +91,44 @@ interface Answer<T> {
 
 /** A portal API call, renewing the session once when it has ended. */
 export async function portal<T>(jar: Jar, origin: string, path: string): Promise<Answer<T>> {
-  for (let attempt = 0; attempt < 2; attempt++) {
+  let renewed = false;
+  let blank = 0;
+  for (;;) {
     const res = await get(jar, `${origin}${path}`, "application/json");
     if (res.status === 401 || (res.status >= 300 && res.status < 400)) {
       await res.body?.cancel();
-      if (attempt === 0 && (await renewSession(jar, origin))) continue;
+      if (!renewed && (await renewSession(jar, origin))) {
+        renewed = true;
+        continue;
+      }
       throw new LoginExpiredError("交我办（jAccount）的登录已过期");
     }
     if (!res.ok) throw new Error(`交我办返回 HTTP ${res.status}`);
-    const body = (await res.json()) as Answer<T>;
+    // now and then the portal answers 200 with nothing (or a page) where the JSON should be: ask once more
+    const body = parseAnswer<T>(await res.text());
+    if (!body) {
+      if (blank++ < 1) {
+        await new Promise((r) => setTimeout(r, RETRY_MS));
+        continue;
+      }
+      throw new Error("交我办这次没有正常回答（返回了空内容），下次更新会再试");
+    }
     if (body.errno !== 0) throw new Error(`交我办出错了：${body.message || body.error || `errno ${body.errno}`}`);
     return body;
   }
-  throw new LoginExpiredError("交我办（jAccount）的登录已过期");
+}
+
+/** How long to wait before asking the portal again after an empty answer. */
+const RETRY_MS = 1500;
+
+function parseAnswer<T>(text: string): Answer<T> | null {
+  if (!text.trim()) return null;
+  try {
+    const v = JSON.parse(text) as unknown;
+    return v && typeof v === "object" ? (v as Answer<T>) : null;
+  } catch {
+    return null;
+  }
 }
 
 // ───────────────────────── messages ─────────────────────────
