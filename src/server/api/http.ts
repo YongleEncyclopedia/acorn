@@ -12,6 +12,7 @@ import { registerArchives } from "./routes/archives.ts";
 import { registerTranslate } from "./routes/translate.ts";
 import { registerImports } from "./routes/imports.ts";
 import { registerData } from "./routes/data.ts";
+import { registerOffline } from "./routes/offline.ts";
 import { registerAccounts } from "./routes/accounts.ts";
 import { registerNetwork } from "./routes/network.ts";
 import { registerInbox } from "./routes/inbox.ts";
@@ -119,6 +120,7 @@ export function createHttp(app: App, hooks: Hooks = {}): Hono {
   registerTranslate(r, app);
   registerImports(r, app);
   registerData(r, app);
+  registerOffline(r, app);
   registerAccounts(r, app);
   registerNetwork(r, app);
   registerInbox(r, app);

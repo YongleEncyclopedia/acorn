@@ -12,7 +12,7 @@ import { Segmented, Switch } from "../components/Controls.tsx";
 import { FeedIcon } from "../components/FeedIcon.tsx";
 import { Seal } from "../components/Seal.tsx";
 import { useBootstrap, useEntries, useEntryActions, keys } from "../lib/queries.ts";
-import { api, type EntryQuery } from "../lib/api.ts";
+import { api, canFilterUnread, listQuery, type EntryQuery } from "../lib/api.ts";
 import { relTime, todayHeading, hostname, greeting } from "../lib/format.ts";
 import { toast, toastError, ui } from "../lib/store.ts";
 import { useHotkeys } from "../lib/hotkeys.ts";
@@ -46,16 +46,11 @@ export function StreamPage({ stream, entryId }: { stream: Stream; entryId: numbe
   // `at` is kept as one object: the popover re-measures whenever its anchor changes identity.
   const [entryMenu, setEntryMenu] = useState<{ entry: EntrySummary; at: { x: number; y: number } } | null>(null);
   const { setRead, setStar } = useEntryActions();
-  // 未读 is already a filter; 稍后读, 在读 and 已入藏 are lists you keep regardless of read state.
-  const canFilter = stream.kind !== "view" || stream.view === "today" || stream.view === "all";
+  const target = stream.kind === "view" ? { view: stream.view } : stream.kind === "feed" ? { feed: stream.id } : { folder: stream.id };
+  const canFilter = canFilterUnread(target);
   const unreadOnly = canFilter && unreadPref;
-
-  const query: EntryQuery = useMemo(() => {
-    const how = { unread: unreadOnly || undefined, order: order === "old" ? ("old" as const) : undefined };
-    if (stream.kind === "view") return { view: stream.view, ...how };
-    if (stream.kind === "feed") return { feed: stream.id, ...how };
-    return { folder: stream.id, ...how };
-  }, [stream, unreadOnly, order]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const query: EntryQuery = useMemo(() => listQuery(target, { unreadOnly, order }), [stream, unreadOnly, order]);
   const list = useEntries(query);
   const entries = useMemo(() => list.data?.pages.flatMap((p) => p.items) ?? [], [list.data]);
   // The "new entries" pill only makes sense for arrivals after the list was loaded.

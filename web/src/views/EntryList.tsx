@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Bookmark, BookmarkCheck, CircleCheck, CircleDot, Highlighter } from "lucide-react";
 import { FeedIcon } from "../components/FeedIcon.tsx";
+import { imageProxy } from "../lib/api.ts";
 import { Seal } from "../components/Seal.tsx";
 import { dayKey, dayLabel, relTime } from "../lib/format.ts";
 import { useTranslation } from "../lib/translate.ts";
@@ -18,8 +19,6 @@ export function Ring({ p, size = 15 }: { p: number; size?: number }) {
     </svg>
   );
 }
-
-const thumb = (url: string, referer: string | null) => `/api/img?u=${encodeURIComponent(url)}${referer ? `&r=${encodeURIComponent(referer)}` : ""}`;
 
 /** What can be done to an entry without opening it: by swipe on a phone, from the hover buttons with a mouse. */
 export type EntryAction = "read" | "star";
@@ -121,7 +120,7 @@ const Item = memo(function Item({ entry, feed, selected, showSource, compact, ti
           </button>
         </div>
       </div>
-      {entry.image && imgOk && !compact && <img className="entry-thumb" src={thumb(entry.image, entry.url)} alt="" loading="lazy" decoding="async" onError={() => setImgOk(false)} />}
+      {entry.image && imgOk && !compact && <img className="entry-thumb" src={imageProxy(entry.image, entry.url)} alt="" loading="lazy" decoding="async" onError={() => setImgOk(false)} />}
     </article>
   );
 });

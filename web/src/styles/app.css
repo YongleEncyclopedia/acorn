@@ -2595,6 +2595,133 @@ kbd {
   align-self: center;
 }
 
+/* 离线阅读: the offline pack's options, its progress, and the chip shown while offline */
+.offline-options {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 12px 14px;
+  align-items: start;
+}
+.offline-label {
+  padding-top: 7px;
+  font-size: 13px;
+  font-weight: 560;
+  color: var(--ink-2);
+}
+.offline-cell {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  justify-items: start;
+}
+.offline-cell.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+}
+.offline-cell .segmented {
+  flex-wrap: wrap;
+}
+.offline-help {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+.offline-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+/* on phones the status text takes a line of its own and the buttons move under it, together */
+#offline .bridge-status > :first-child {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.offline-blocked {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.offline-blocked code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.offline-progress {
+  display: grid;
+  gap: 8px;
+}
+.offline-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+.offline-bar > div {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width var(--dur-2) var(--ease);
+}
+.offline-chip {
+  position: fixed;
+  z-index: 85;
+  bottom: calc(16px + var(--safe-b));
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 24px);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--bg-elev) 88%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-2), inset 0 0 0 1px var(--line);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  animation: fade-in var(--dur-2) var(--ease);
+}
+.offline-chip svg {
+  flex: none;
+  color: var(--ink-3);
+}
+.offline-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* toasts rise above the chip */
+body:has(.offline-chip) .toasts {
+  bottom: calc(56px + var(--safe-b));
+}
+@media (max-width: 760px) {
+  /* above the tab bar, and clear of the reading toolbar where the tab bar gives way to it */
+  .offline-chip {
+    bottom: calc(var(--tabbar-h) + 16px + var(--safe-b));
+  }
+  body:has(.offline-chip) .toasts {
+    bottom: calc(var(--tabbar-h) + 56px + var(--safe-b));
+  }
+}
+@media (max-width: 560px) {
+  .offline-options {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .offline-label {
+    padding-top: 6px;
+  }
+}
+
 /* ───────────────────────── Inside the desktop app ─────────────────────────
    On macOS the app's window has no title bar. Its three buttons float over the top-left corner and the
    reader's own top bars are what the window is dragged by. `data-shell` is set by lib/desktop.ts when the

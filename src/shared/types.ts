@@ -322,6 +322,15 @@ export interface TranslationJob {
   model: string;
 }
 
+/** The web app's files, for the offline pack (离线包): what a device stores so the reader opens without a connection. */
+export interface OfflineAssets {
+  /** The page, its code and styles, the manifest and icon. */
+  app: string[];
+  /** The reading fonts, by the setting that shows them (黑体 is the system's own). */
+  fonts: { serif: string[]; kai: string[] };
+  bytes: { app: number; serif: number; kai: number };
+}
+
 /** A platform Acorn can sign in to, to read what the user's own account sees there. */
 export interface AccountService {
   id: string;
