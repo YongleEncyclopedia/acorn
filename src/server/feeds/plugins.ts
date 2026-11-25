@@ -2,7 +2,7 @@ import { readdirSync, statSync, existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseHTML } from "linkedom";
-import type { AcornPlugin, PluginAccount, PluginContext } from "./plugin-api.ts";
+import type { AcornPlugin, PluginAccount, PluginContext, PluginState } from "./plugin-api.ts";
 import { LoginExpiredError } from "./plugin-api.ts";
 import type { PluginInfo } from "../../shared/types.ts";
 import type { ParsedItem } from "./parse.ts";
@@ -47,7 +47,10 @@ async function load(dir: string, file: string): Promise<Loaded> {
   return entry;
 }
 
-const info = (p: AcornPlugin, builtin: boolean): PluginInfo => ({ id: p.id, name: p.name, description: p.description || "", params: p.params || [], builtin: builtin || undefined, account: p.account });
+const info = (p: AcornPlugin, builtin: boolean): PluginInfo => ({ id: p.id, name: p.name, description: p.description || "", params: p.params || [], builtin: builtin || undefined, account: p.account,
+  // built-ins that sign in list under 登录后订阅 unless they say otherwise
+  group: builtin ? p.group || (p.account ? "account" : "general") : undefined,
+});
 
 export async function listPlugins(dir: string): Promise<PluginInfo[]> {
   // the platforms Acorn signs in to come first; a file in plugins/ cannot take their ids
@@ -71,10 +74,17 @@ export async function getPlugin(dir: string, id: string): Promise<AcornPlugin> {
   throw new Error(`找不到插件 ${id}`);
 }
 
+/** A state for one run only (previews, choices). */
+export function memoryState(): PluginState {
+  const m = new Map<string, unknown>();
+  return { get: <T,>(k: string) => m.get(k) as T | undefined, set: (k, v) => void m.set(k, v) };
+}
+
 /** What a plugin runs with; also how other parts of Acorn read through a built-in plugin's helpers (the class calendar). */
-export function pluginContext(id: string, params: Record<string, string>, userAgent: string, account: PluginAccount | null): PluginContext {
+export function pluginContext(id: string, params: Record<string, string>, userAgent: string, account: PluginAccount | null, state: PluginState = memoryState()): PluginContext {
   return {
     params,
+    state,
     fetchText: async (url, opts = {}) => (await fetchText(url, { userAgent, headers: opts.headers, referer: opts.referer, cookie: opts.cookie })).text,
     fetchJson: async (url, opts = {}) =>
       JSON.parse((await fetchText(url, { userAgent, accept: "application/json", headers: opts.headers, referer: opts.referer, cookie: opts.cookie })).text),
@@ -105,10 +115,10 @@ export async function pluginChoices(dir: string, id: string, key: string, userAg
   return plugin.choices ? plugin.choices(pluginContext(id, {}, userAgent, account), key) : [];
 }
 
-export async function runPlugin(dir: string, id: string, params: Record<string, string>, userAgent: string, account: PluginAccount | null = null) {
+export async function runPlugin(dir: string, id: string, params: Record<string, string>, userAgent: string, account: PluginAccount | null = null, state?: PluginState) {
   const plugin = await getPlugin(dir, id);
   needAccount(plugin, account);
-  const result = await plugin.fetch(pluginContext(id, params, userAgent, account));
+  const result = await plugin.fetch(pluginContext(id, params, userAgent, account, state));
   const items: ParsedItem[] = (result.items || [])
     .filter((it) => it && it.title)
     .map((it) => {

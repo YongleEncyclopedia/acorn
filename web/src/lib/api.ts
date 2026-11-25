@@ -1,4 +1,5 @@
 import type {
+  NetworkStatus,
   Account,
   AccountService,
   ClassCalendar,
@@ -203,5 +204,11 @@ export const api = {
   patchClassCalendar: (body: { minCount?: number; include?: "important" | "all"; feishuAppId?: string; feishuAppSecret?: string; feishuCalendarId?: string }) => patch<ClassCalendar>("/api/class-calendar", body),
   syncClassCalendar: () => post<{ feishu: { created: number; updated: number; removed: number } | null; calendar: ClassCalendar }>("/api/class-calendar/sync"),
   classCalendarLink: () => post<{ path: string }>("/api/class-calendar/link"),
+  // 网络: the proxy, and whether a site can be reached
+  network: () => get<NetworkStatus>("/api/network"),
+  networkTest: (url?: string) => post<{ ok: boolean; status?: number; error?: string; ms: number; via: string; url: string }>("/api/network/test", url ? { url } : {}),
+  // the key of the RSS addresses (/out/*)
+  outputKey: () => get<{ key: string }>("/api/outputs/key"),
+  newOutputKey: () => post<{ key: string }>("/api/outputs/key"),
   pluginChoices: (id: string, key: string, account?: number | null) => get<{ value: string; label: string }[]>(`/api/plugins/${encodeURIComponent(id)}/choices${qs({ key, account })}`),
 };

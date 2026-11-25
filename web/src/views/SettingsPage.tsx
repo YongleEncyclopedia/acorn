@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Download, HardDrive, KeyRound, LogOut, Menu as MenuIcon, Plus, Rss, ScrollText, Send, Smartphone, Trash2 } from "lucide-react";
 import { Layout } from "./Layout.tsx";
+import { NetworkSection } from "./NetworkSettings.tsx";
 import { AccountsSettings } from "./AccountsSettings.tsx";
 import { ClassCalendarSettings } from "./ClassCalendarSettings.tsx";
 import { FontPicker, ThemePicker, usePrefs } from "./ReaderPrefs.tsx";
@@ -458,6 +459,7 @@ const SECTIONS: [id: string, label: string][] = [
   ["appearance", "阅读外观"],
   ["habits", "阅读习惯"],
   ["rsshub", "RSSHub"],
+  ["network", "网络"],
   ["accounts", "账号"],
   ["class-calendar", "班级日历"],
   ["translate", "翻译与要点"],
@@ -733,6 +735,8 @@ export function SettingsPage() {
               </div>
             </div>
           </section>
+
+          <NetworkSection s={s} save={save} />
 
           <AccountsSettings />
 

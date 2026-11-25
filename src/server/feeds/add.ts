@@ -2,13 +2,19 @@ import type { App } from "../app.ts";
 import type { FeedConfig, FeedKind, FeedPreview, FullTextMode, PreviewItem } from "../../shared/types.ts";
 import { fetchSource, rsshubBase, type SourceResult } from "./source.ts";
 import { getPlugin } from "./plugins.ts";
+import type { AcornPlugin } from "./plugin-api.ts";
 import { parseRsshubInput } from "./rsshub.ts";
-import { NotAFeedError, parseFeedText } from "./parse.ts";
-import { discoverFeeds, guessFeedUrls } from "./discover.ts";
+import { NotAFeedError, looksLikeHtml, parseFeedText } from "./parse.ts";
+import { discoverFeeds, feedLinks, guessFeedUrls } from "./discover.ts";
+import { siteFeeds } from "./hints.ts";
+import { radarFor } from "./radar.ts";
+import { browserDiscover } from "./browser-read.ts";
+import { jsonItems, suggestJsonRule } from "./builtin/json.ts";
+import { parseLooseDate } from "../util/dates.ts";
 import { scrapeList, suggestRule } from "./html-source.ts";
 import { refreshFeed } from "./refresh.ts";
-import { httpGet, decodeBody } from "../util/http.ts";
-import { excerpt, htmlToText } from "../util/text.ts";
+import { httpGet, decodeBody, botCheck } from "../util/http.ts";
+import { excerpt, htmlToText, randomToken } from "../util/text.ts";
 import type { FeedInternal } from "../store/feeds.ts";
 
 export interface SourceInput {
@@ -74,27 +80,30 @@ export async function previewSource(app: App, src: SourceInput): Promise<FeedPre
     return { ...base, resolvedUrl: res.url, title, siteUrl: res.url, suggestedRule: rule, items: rule ? toPreviewItems({ items: scrapeList(html, res.url, rule) }) : [] };
   }
 
+  // RSSHub's routes for the address are looked up meanwhile: they serve platforms that block servers or have no feed
+  const routes = radarFor(app, url);
+  if (config.browser) return { ...(await discoverInBrowser(app, url, base)), rsshub: await routes };
   try {
     const res = await fetchSource(app, { kind: "feed", url, config });
     return { ...base, resolvedUrl: res.resolvedUrl, title: res.title, siteUrl: res.siteUrl, description: res.description, items: toPreviewItems(res) };
   } catch (err) {
-    const e = err as NotAFeedError & { html?: string; finalUrl?: string };
-    if (!(err instanceof NotAFeedError) || !e.html) throw err;
+    const e = err as NotAFeedError & { html?: string; json?: string; finalUrl?: string };
+    if (err instanceof NotAFeedError && e.json) return { ...previewJson(base, e.finalUrl || url, e.json), rsshub: await routes };
+    if (!(err instanceof NotAFeedError) || !e.html) {
+      // The address itself could not be read (blocked, a bot check, offline). RSSHub or the site's own feeds may still do.
+      const rsshub = await routes;
+      const hinted = await probeFeeds(app, siteFeeds(url));
+      if (rsshub.length || hinted.length) return { ...base, kind: hinted.length ? "feed" : "html", candidates: hinted, rsshub, problem: (err as Error).message };
+      throw err;
+    }
     const pageUrl = e.finalUrl || url;
     const candidates: FeedPreview["candidates"] = discoverFeeds(e.html, pageUrl);
     const rule = suggestRule(e.html, pageUrl);
-    if (!candidates.length) {
-      // Probe well-known feed paths. These are site-wide guesses, so they only win when the page itself has no list.
-      const probes = await Promise.allSettled(
-        guessFeedUrls(pageUrl).map(async (u) => {
-          const r = await httpGet(u, { userAgent: app.cfg.feedUserAgent, timeoutMs: 10_000, maxBytes: 5_000_000 });
-          if (!r.ok) throw new Error("no");
-          const parsed = parseFeedText(decodeBody(r.body, r.contentType), r.url);
-          return { url: r.url, title: parsed.title, kind: "feed" as FeedKind, guessed: true };
-        }),
-      );
-      for (const p of probes) if (p.status === "fulfilled" && !candidates.some((c) => c.url === p.value.url)) candidates.push(p.value);
-    }
+    // The site's own patterns (GitHub releases…) and links that say RSS, kept once read as feeds; the usual paths
+    // only when nothing else turned up, since they are site-wide guesses.
+    const known = new Set(candidates.map((c) => c.url));
+    candidates.push(...(await probeFeeds(app, [...siteFeeds(pageUrl), ...feedLinks(e.html, pageUrl)].filter((c) => !known.has(c.url)), { follow: true })));
+    if (!candidates.length) candidates.push(...(await probeFeeds(app, guessFeedUrls(pageUrl).map((u) => ({ url: u, title: "" })), { guessed: true })));
     const declared = candidates.filter((c) => !c.guessed);
     const useHtml = !declared.length && !!rule;
     const title = e.html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() || pageUrl;
@@ -105,11 +114,118 @@ export async function previewSource(app: App, src: SourceInput): Promise<FeedPre
       resolvedUrl: pageUrl,
       title,
       siteUrl: pageUrl,
-      candidates,
+      candidates: dedupe(candidates),
       suggestedRule: rule,
       items: useHtml && rule ? toPreviewItems({ items: scrapeList(e.html, pageUrl, rule) }) : [],
+      rsshub: await routes,
     };
   }
+}
+
+const dedupe = (list: FeedPreview["candidates"]) => list.filter((c, i) => list.findIndex((d) => d.url === c.url) === i);
+
+const FEEDLIKE = /^\s*(<\?xml[^>]*>\s*)?(<\?xml-stylesheet[^>]*>\s*)*(<!--[\s\S]*?-->\s*)*<(rss|feed|rdf:RDF)\b|"version"\s*:\s*"https:\/\/jsonfeed\.org/i;
+
+/**
+ * Addresses read to see whether they are feeds. A link that turns out to be a page listing feeds (an "RSS"
+ * page) is followed once (`follow`).
+ */
+async function probeFeeds(app: App, list: { url: string; title: string }[], opts: { guessed?: boolean; follow?: boolean } = {}): Promise<FeedPreview["candidates"]> {
+  const out: FeedPreview["candidates"] = [];
+  const next: { url: string; title: string }[] = [];
+  await Promise.allSettled(
+    list.slice(0, 12).map(async (c) => {
+      const r = await httpGet(c.url, { userAgent: app.cfg.feedUserAgent, timeoutMs: 10_000, maxBytes: 5_000_000 });
+      if (!r.ok) return;
+      const text = decodeBody(r.body, r.contentType);
+      if (FEEDLIKE.test(text.slice(0, 2000))) {
+        const parsed = parseFeedText(text, r.url);
+        out.push({ url: r.url, title: parsed.title || c.title, kind: "feed", ...(opts.guessed ? { guessed: true } : {}) });
+      } else if (opts.follow && looksLikeHtml(text)) {
+        for (const d of discoverFeeds(text, r.url)) next.push({ url: d.url, title: d.title });
+        for (const l of feedLinks(text, r.url)) if (/\.(xml|rss|atom)(\?|$)|\/(rss|feed|atom)\/?(\?|$)/i.test(l.url)) next.push(l);
+      }
+    }),
+  );
+  const seen = new Set([...list.map((c) => c.url), ...out.map((c) => c.url)]);
+  if (next.length) out.push(...(await probeFeeds(app, next.filter((c) => !seen.has(c.url)), { guessed: opts.guessed })));
+  return out;
+}
+
+/** An address that answers JSON: the json source, with the mapping worked out from the answer. */
+function previewJson(base: FeedPreview, url: string, text: string): FeedPreview {
+  const site = new URL(url).origin;
+  let data: unknown;
+  try {
+    data = JSON.parse(text.replace(/^﻿/, ""));
+  } catch {
+    return { ...base, kind: "html", problem: "这个地址返回的内容不是有效的 JSON" };
+  }
+  const rule = suggestJsonRule(data);
+  const items = rule ? jsonItems(data, rule, site, parseLooseDate) : [];
+  return {
+    ...base,
+    kind: "plugin",
+    url: "json",
+    resolvedUrl: url,
+    title: new URL(url).host,
+    siteUrl: site,
+    json: { url, ...(rule || {}) },
+    items: items.slice(0, 12).map((it) => ({ title: it.title, url: it.url, publishedAt: it.publishedAt, summary: excerpt(htmlToText(it.content), 140) || null, image: it.image })),
+    ...(rule ? {} : { problem: "没能在这个 JSON 里认出条目列表，可以在下面手动填写字段" }),
+  };
+}
+
+/**
+ * The page as the user's browser sees it: feeds only the browser can read (past a bot check), the JSON its
+ * scripts load, or its list once rendered. What the server can read by itself is subscribed without the browser.
+ */
+async function discoverInBrowser(app: App, url: string, base: FeedPreview): Promise<FeedPreview> {
+  const finds = await browserDiscover(app, url);
+  const title = finds.title || new URL(finds.finalUrl).host;
+  const page = { ...base, url: finds.finalUrl, resolvedUrl: finds.finalUrl, title, siteUrl: finds.finalUrl, browser: true };
+  const serverReads = async (u: string) => {
+    try {
+      const r = await httpGet(u, { userAgent: app.cfg.feedUserAgent, timeoutMs: 10_000, maxBytes: 5_000_000 });
+      return r.ok && !botCheck(r);
+    } catch {
+      return false;
+    }
+  };
+  const feeds: FeedPreview["candidates"] = [];
+  for (const f of finds.feeds) {
+    try {
+      const parsed = parseFeedText(f.text, f.url);
+      feeds.push({ url: f.url, title: parsed.title, kind: "feed", ...((await serverReads(f.url)) ? {} : { browser: true }) });
+    } catch {
+      /* not a feed after all */
+    }
+  }
+  if (feeds.length === 1) {
+    const parsed = parseFeedText(finds.feeds.find((f) => f.url === feeds[0].url)!.text, feeds[0].url);
+    return { ...page, kind: "feed", url: feeds[0].url, resolvedUrl: feeds[0].url, title: parsed.title || title, browser: !!feeds[0].browser, items: toPreviewItems(parsed) };
+  }
+  if (feeds.length) return { ...page, kind: "feed", candidates: feeds };
+  // the JSON with the most articles in it, if the server can fetch it too
+  let api: { preview: FeedPreview; n: number } | null = null;
+  for (const j of finds.json) {
+    const p = previewJson(base, j.url, j.text);
+    if (p.json && !p.problem && p.items.length > (api?.n ?? 2)) api = { preview: p, n: p.items.length };
+  }
+  if (api && (await serverReads(api.preview.resolvedUrl))) return { ...api.preview, problem: undefined };
+  const rule = suggestRule(finds.html, finds.finalUrl);
+  if (rule) return { ...page, kind: "html", suggestedRule: rule, items: toPreviewItems({ items: scrapeList(finds.html, finds.finalUrl, rule) }) };
+  return { ...page, kind: "html", problem: "在浏览器里也没找到订阅源、数据接口或文章列表。可以改成「监控网页变化」" };
+}
+
+/**
+ * A plugin subscription's address: its id and parameters, which tells two subscriptions of one plugin apart (two
+ * 星球). Secret parameters (a push key) are left out: the address shows in lists and exports.
+ */
+export function pluginAddress(id: string, params: Record<string, string>, plugin: Pick<AcornPlugin, "params"> | null): string {
+  const secret = new Set((plugin?.params || []).filter((p) => p.secret).map((p) => p.key));
+  const shown = Object.entries(params).filter(([k, v]) => v !== "" && !secret.has(k));
+  return shown.length ? `${id}?${new URLSearchParams(shown.sort(([a], [b]) => a.localeCompare(b))).toString()}` : id;
 }
 
 /** Subscribe. Web pages with exactly one feed are followed automatically; ambiguous pages raise SourceChoiceError. */
@@ -140,12 +256,21 @@ export async function addFeed(app: App, input: AddFeedInput): Promise<{ feed: Fe
   // A plugin is subscribed once per set of parameters (two 星球, Canvas announcements and to-dos): its address
   // carries them, since a subscription's address is unique. Its id stays in config.plugin.
   let fullText = input.fullText;
+  let fetchInterval = input.fetchInterval ?? null;
   if (kind === "plugin") {
     const plugin = await getPlugin(app.cfg.pluginsDir, config.plugin!.id).catch(() => null);
-    const shown = Object.entries(config.plugin?.params || {}).filter(([, v]) => v !== "");
-    if (shown.length) url = `${url}?${new URLSearchParams(shown.sort(([a], [b]) => a.localeCompare(b))).toString()}`;
+    // values Acorn makes up (a push address's id and key) are filled in now
+    const params = { ...(config.plugin?.params || {}) };
+    for (const p of plugin?.params || []) if (p.generate && !params[p.key]) params[p.key] = randomToken(p.secret ? 18 : 6);
+    config = { ...config, plugin: { ...config.plugin!, params } };
+    url = pluginAddress(config.plugin!.id, params, plugin);
     // platforms behind a sign-in hand over whole articles, and their pages show nothing to a server without it
     if (plugin?.account) fullText = "never";
+    // a push subscription has nothing to fetch; messages arrive at its address
+    if (plugin?.id === "inbox") {
+      fullText = "never";
+      fetchInterval = 10080;
+    }
   }
   const existing = app.feeds.find(kind, url);
   if (existing) return { feed: existing, existed: true, added: 0 };
@@ -159,7 +284,7 @@ export async function addFeed(app: App, input: AddFeedInput): Promise<{ feed: Fe
     config,
     fullText,
     autoArchive: input.autoArchive,
-    fetchInterval: input.fetchInterval ?? null,
+    fetchInterval,
   });
   const r = await refreshFeed(app, feed.id);
   // A notice page keeps months of old items: only the last two weeks (or, without dates, nothing) start out unread.

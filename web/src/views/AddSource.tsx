@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Globe, Puzzle, Rss, Sparkles, Wand2 } from "lucide-react";
+import { Check, Eye, Globe, Puzzle, Rss, Send, Sparkles, Wand2 } from "lucide-react";
+import { PushInfo } from "../components/PushInfo.tsx";
 import { Dialog } from "../components/Dialog.tsx";
 import { Segmented, Switch } from "../components/Controls.tsx";
 import { api } from "../lib/api.ts";
@@ -13,8 +14,17 @@ import type { FeedConfig, FeedKind, FeedPreview, FullTextMode, HtmlRule, PluginI
 
 const KIND_LABEL: Record<FeedKind, string> = { feed: "RSS", rsshub: "RSSHub", html: "网页", plugin: "插件" };
 
-export function KindBadge({ kind }: { kind: FeedKind }) {
-  return <span className={`badge ${kind === "html" ? "warn" : kind === "rsshub" ? "accent" : kind === "plugin" ? "ok" : ""}`}>{KIND_LABEL[kind]}</span>;
+// built-in sources that are not plugins to the user
+const PLUGIN_LABEL: Record<string, string> = { json: "JSON", watch: "变化", inbox: "推送" };
+
+export function KindBadge({ kind, plugin, browser }: { kind: FeedKind; plugin?: string; browser?: boolean }) {
+  const label = (kind === "plugin" && plugin && PLUGIN_LABEL[plugin.split("?")[0]]) || KIND_LABEL[kind];
+  return (
+    <>
+      <span className={`badge ${kind === "html" ? "warn" : kind === "rsshub" ? "accent" : kind === "plugin" ? "ok" : ""}`}>{label}</span>
+      {browser && <span className="badge" title="通过你的浏览器读取">浏览器</span>}
+    </>
+  );
 }
 
 export function PreviewList({ items, empty = "没有读到条目。" }: { items: PreviewItem[]; empty?: string }) {
@@ -156,9 +166,14 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
   const boot = useBootstrap();
   const qc = useQueryClient();
   const [, navigate] = useLocation();
-  const [tab, setTab] = useState<"url" | "rsshub" | "plugin">("url");
+  const [tab, setTab] = useState<"url" | "rsshub" | "plugin" | "push">("url");
+  // a source made of a page or an API the server reads with a built-in plugin (JSON interface, page watch)
+  const [draft, setDraft] = useState<{ id: "json" | "watch"; params: Record<string, string> } | null>(null);
+  const [errorCode, setErrorCode] = useState("");
+  const [pushName, setPushName] = useState("");
+  const [pushed, setPushed] = useState<{ id: number; token: string } | null>(null);
   const [input, setInput] = useState(initial || "");
-  const [pluginId, setPluginId] = useState(boot.data?.plugins.find((p) => !p.error)?.id || "");
+  const [pluginId, setPluginId] = useState(boot.data?.plugins.find((p) => !p.error && p.group !== "hidden")?.id || "");
   const [params, setParams] = useState<Record<string, string>>(() => startParams(boot.data?.plugins.find((p) => p.id === pluginId)));
   const [accountId, setAccountId] = useState<number | null>(null);
   const [preview, setPreview] = useState<FeedPreview | null>(null);
@@ -190,17 +205,43 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
   const needsAccount = !!plugin?.account && !accountId;
   const source = tab === "plugin" ? pluginId : tab === "rsshub" ? (input.startsWith("rsshub://") ? input : `rsshub:/${input.startsWith("/") ? "" : "/"}${input}`) : input;
 
-  const runPreview = async (override?: { input?: string; kind?: FeedKind; config?: FeedConfig }) => {
+  const runPreview = async (override?: { input?: string; kind?: FeedKind; config?: FeedConfig; keepDraft?: boolean }) => {
     setBusy("preview");
     setError("");
+    setErrorCode("");
+    if (!override?.keepDraft) setDraft(null);
     try {
-      const p = await api.preview(override?.input ?? source, override?.kind ?? kind, override?.config ?? config);
+      const k = override && "kind" in override ? override.kind : kind;
+      const p = await api.preview(override?.input ?? source, k, override?.config ?? config);
       setPreview(p);
-      if (p.suggestedRule && !override?.config) setRule(p.suggestedRule);
-      if (p.kind === "html") setFullText("always");
+      if (p.suggestedRule && !override?.config?.html) setRule(p.suggestedRule);
+      if (p.json && !override?.keepDraft) setDraft({ id: "json", params: p.json });
+      // a page read whole each time, or a site only the browser gets past, has no full text to fetch
+      setFullText(p.browser || override?.config?.plugin?.id === "watch" ? "never" : p.kind === "html" ? "always" : "auto");
       if (!title && p.title) setTitle("");
     } catch (e) {
       setPreview(null);
+      setError((e as Error).message);
+      setErrorCode((e as { code?: string }).code || "");
+    } finally {
+      setBusy("");
+    }
+  };
+  /** Preview a JSON interface or a watched page with the fields as they stand. */
+  const previewDraft = (d: { id: "json" | "watch"; params: Record<string, string> }) => {
+    setDraft(d);
+    return runPreview({ input: `plugin:${d.id}`, kind: "plugin", config: { plugin: { id: d.id, params: d.params } }, keepDraft: true });
+  };
+  const pageUrl = preview?.resolvedUrl && /^https?:/i.test(preview.resolvedUrl) ? preview.resolvedUrl : /^https?:\/\//i.test(input.trim()) ? input.trim() : /^[\w-]+(\.[\w-]+)+/.test(input.trim()) ? `https://${input.trim()}` : "";
+  const inBrowser = () => runPreview({ input: pageUrl || input, kind: undefined, config: { browser: true } });
+  const createPush = async () => {
+    setBusy("add");
+    setError("");
+    try {
+      const r = await api.addFeed({ input: "plugin:inbox", kind: "plugin", title: pushName.trim() || "推送", config: { plugin: { id: "inbox", params: {} } }, fullText: "never" });
+      qc.invalidateQueries({ queryKey: keys.bootstrap });
+      setPushed({ id: r.feed.id, token: r.feed.config.plugin?.params?.token || "" });
+    } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy("");
@@ -212,15 +253,22 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const subscribe = async (overrideInput?: string) => {
+  /** What subscribing means for what is on screen. */
+  const request = (overrideInput?: string, viaBrowser?: boolean): { input: string; kind?: FeedKind; config?: FeedConfig } => {
+    if (overrideInput) return { input: overrideInput, kind: "feed", config: viaBrowser ? { browser: true } : undefined };
+    if (tab === "url" && draft) return { input: `plugin:${draft.id}`, kind: "plugin", config: { plugin: { id: draft.id, params: draft.params } } };
+    if (tab === "url" && preview?.kind === "html" && rule) return { input: preview.url, kind: "html", config: { html: rule, ...(preview.browser ? { browser: true } : {}) } };
+    if (tab === "url" && preview?.browser && preview.kind === "feed") return { input: preview.url, kind: "feed", config: { browser: true } };
+    return { input: source, kind, config };
+  };
+
+  const subscribe = async (overrideInput?: string, viaBrowser?: boolean) => {
     setBusy("add");
     setError("");
     try {
       const folderId = folder && folder !== "__new" ? Number(folder) : null;
       const r = await api.addFeed({
-        input: overrideInput ?? (preview?.kind === "html" && rule ? preview.url : source),
-        kind: overrideInput ? "feed" : preview?.kind === "html" && rule ? "html" : kind,
-        config: preview?.kind === "html" && rule ? { html: rule } : config,
+        ...request(overrideInput, viaBrowser),
         title: title.trim() || undefined,
         folderId,
         folderName: folder === "__new" ? newFolder.trim() : undefined,
@@ -244,6 +292,76 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
   const folders = boot.data?.folders || [];
   // a plugin that ran without an error can be empty for now (no assignments due yet) and fill up later
   const canSubscribe = !!preview && (preview.items.length > 0 || preview.kind === "plugin" || (preview.kind === "html" && !!rule)) && !preview.candidates.length;
+  // nothing to subscribe to came out of the address: offer the other ways in
+  const stuck = tab === "url" && (!!error || !!preview?.problem || (!!preview && !canSubscribe && !preview.candidates.length) || (preview?.kind === "html" && !rule));
+  const rsshubBase = boot.data?.settings.rsshubBase || "";
+  const draftPlugin = draft ? boot.data?.plugins.find((p) => p.id === draft.id) : undefined;
+
+  const ways = tab === "url" && (preview || error) && (
+    <div className="ways">
+      {preview?.problem && <div className="callout warn">{preview.problem}</div>}
+      {!!preview?.rsshub?.length && !draft && (
+        <div className="way-group">
+          <div className="way-head">
+            RSSHub 可以订阅这个页面
+            {(!rsshubBase || /rsshub\.app/.test(rsshubBase)) && <span className="muted">（公共的 rsshub.app 已限制访问，要在 设置 → RSSHub 填自建实例）</span>}
+          </div>
+          <div className="way-list">
+            {preview.rsshub.slice(0, 8).map((m) => (
+              <button
+                key={m.route}
+                type="button"
+                className="way-item"
+                onClick={() => {
+                  setInput(`rsshub:/${m.route}`);
+                  void runPreview({ input: `rsshub:/${m.route}`, kind: undefined, config: undefined });
+                }}
+              >
+                <span className="t">{m.title}</span>
+                <span className="d">{m.route}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {stuck && !draft && (
+        <div className="way-buttons">
+          {boot.data?.egoBrowser && !preview?.browser && (
+            <button type="button" className="btn sm" disabled={!!busy} onClick={inBrowser} title="在你的浏览器里打开：过得了网站防护，也看得到脚本加载出来的内容">
+              <Globe size={14} />
+              用我的浏览器识别
+            </button>
+          )}
+          {pageUrl && (
+            <button type="button" className="btn sm" disabled={!!busy} onClick={() => previewDraft({ id: "watch", params: { url: pageUrl } })} title="没有文章列表的页面：内容一变就记一篇">
+              <Eye size={14} />
+              监控网页变化
+            </button>
+          )}
+          {errorCode === "bot_check" && !boot.data?.egoBrowser && <span className="muted">这个网站只让浏览器进。装上 ego 浏览器后，可以改用浏览器读取。</span>}
+        </div>
+      )}
+      {draft && draftPlugin && (
+        <div className="draft">
+          <div className="callout plain">{draft.id === "json" ? "这是一个 JSON 接口。松果认出了下面这些字段，不对的可以改，再重新预览。" : "松果会定期打开这个网页，内容一变就记一篇，写明新增和删去了什么。只填选择器，就只看页面上的那一部分。"}</div>
+          <div className="form-grid">
+            {draftPlugin.params
+              .filter((p) => !p.hidden)
+              .map((p) => (
+                <div key={p.key} className="form-row">
+                  <label className="lbl">{p.label}</label>
+                  <input className="field mono" placeholder={p.placeholder} value={draft.params[p.key] || ""} onChange={(e) => setDraft({ ...draft, params: { ...draft.params, [p.key]: e.target.value } })} />
+                </div>
+              ))}
+          </div>
+          <button type="button" className="btn sm" style={{ marginTop: 10 }} disabled={!!busy} onClick={() => previewDraft(draft)}>
+            {busy === "preview" ? <span className="spinner" /> : <Wand2 size={14} />}
+            按这些字段重新预览
+          </button>
+        </div>
+      )}
+    </div>
+  );
 
   const options = (
     <div className="form-grid" style={{ marginTop: 16 }}>
@@ -300,13 +418,40 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
       footer={
         <>
           {error && <span style={{ color: "var(--danger)", fontSize: 13, marginRight: "auto", lineHeight: 1.5 }}>{error}</span>}
-          <button className="btn ghost" onClick={onClose}>
-            取消
-          </button>
-          <button className="btn primary" disabled={!canSubscribe || !!busy} onClick={() => subscribe()}>
-            {busy === "add" ? <span className="spinner" /> : <Check size={16} />}
-            订阅
-          </button>
+          {tab === "push" ? (
+            pushed ? (
+              <button
+                className="btn primary"
+                onClick={() => {
+                  onClose();
+                  navigate(`/feed/${pushed.id}`);
+                }}
+              >
+                <Check size={16} />
+                完成
+              </button>
+            ) : (
+              <>
+                <button className="btn ghost" onClick={onClose}>
+                  取消
+                </button>
+                <button className="btn primary" disabled={!!busy} onClick={createPush}>
+                  {busy === "add" ? <span className="spinner" /> : <Send size={16} />}
+                  创建推送地址
+                </button>
+              </>
+            )
+          ) : (
+            <>
+              <button className="btn ghost" onClick={onClose}>
+                取消
+              </button>
+              <button className="btn primary" disabled={!canSubscribe || !!busy} onClick={() => subscribe()}>
+                {busy === "add" ? <span className="spinner" /> : <Check size={16} />}
+                订阅
+              </button>
+            </>
+          )}
         </>
       }
     >
@@ -316,7 +461,9 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
           onChange={(t) => {
             setTab(t);
             setPreview(null);
+            setDraft(null);
             setError("");
+            setErrorCode("");
             // the plugin already chosen brings its own defaults (no full text for platforms behind a sign-in)
             if (t === "plugin") choosePlugin(pluginId);
             else setFullText("auto");
@@ -324,6 +471,7 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
           options={[
             { value: "url", label: <><Globe size={14} />网址</> },
             { value: "rsshub", label: <><Sparkles size={14} />RSSHub</> },
+            { value: "push", label: <><Send size={14} />推送</> },
             { value: "plugin", label: <><Puzzle size={14} />插件</> },
           ]}
         />
@@ -344,6 +492,24 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
           </button>
         </div>
       )}
+      {tab === "url" && !preview && error && <div style={{ marginTop: 14 }}>{ways}</div>}
+      {tab === "push" &&
+        (pushed ? (
+          <div className="form-grid">
+            <div className="callout">推送地址建好了。往下面的地址发消息，就会出现在「{pushName.trim() || "推送"}」这个订阅里。以后在这个订阅的设置里也能找到它。</div>
+            <PushInfo token={pushed.token} />
+          </div>
+        ) : (
+          <div className="form-grid">
+            <div className="callout plain">
+              给一个来源一个专属的推送地址。iPhone 快捷指令、IFTTT / n8n、脚本、服务器告警、聊天机器人……把消息发到这个地址，就成了这个订阅里的文章。适合没法定期去取、只能由它主动发出来的消息。
+            </div>
+            <div className="form-row">
+              <label className="lbl">名称</label>
+              <input className="field" autoFocus placeholder="比如：手机通知、服务器告警、读书笔记" value={pushName} onChange={(e) => setPushName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && !busy && createPush()} />
+            </div>
+          </div>
+        ))}
       {tab === "url" && !input.trim() && !preview && (
         <div className="picks">
           {PICKS.map((g) => (
@@ -401,7 +567,8 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
           <div className="form-grid">
             <select className="field" value={pluginId} onChange={(e) => choosePlugin(e.target.value)}>
               {[
-                { label: "登录后订阅", list: boot.data.plugins.filter((p) => p.builtin) },
+                { label: "登录后订阅", list: boot.data.plugins.filter((p) => p.builtin && p.group === "account") },
+                { label: "通用", list: boot.data.plugins.filter((p) => p.builtin && p.group === "general") },
                 { label: "我的插件", list: boot.data.plugins.filter((p) => !p.builtin) },
               ]
                 .filter((g) => g.list.length)
@@ -439,6 +606,7 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
 
       {preview && (
         <div style={{ marginTop: 18 }}>
+          {ways}
           {preview.kind === "feed" && preview.candidates.length > 0 && !preview.items.length ? (
             <>
               <div className="callout" style={{ marginBottom: 10 }}>
@@ -446,17 +614,20 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
               </div>
               <div className="preview-list">
                 {preview.candidates.map((c) => (
-                  <button key={c.url} className="preview-item" style={{ width: "100%", textAlign: "left" }} onClick={() => subscribe(c.url)}>
-                    <span className="t">{c.title || c.url}</span>
+                  <button key={c.url} className="preview-item" style={{ width: "100%", textAlign: "left" }} onClick={() => subscribe(c.url, c.browser)}>
+                    <span className="t">
+                      {c.title || c.url}
+                      {c.browser && <span className="badge" style={{ marginLeft: 8 }}>浏览器读取</span>}
+                    </span>
                     <span className="d">{c.url}</span>
                   </button>
                 ))}
               </div>
             </>
-          ) : (
+          ) : preview.problem && !preview.items.length && !rule && !draft ? null : (
             <>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <KindBadge kind={preview.kind} />
+                <KindBadge kind={preview.kind} plugin={draft?.id} browser={preview.browser} />
                 <b style={{ fontSize: 15 }}>{preview.title || preview.url}</b>
                 <span className="muted" style={{ fontSize: 12.5, marginLeft: "auto" }}>
                   {preview.items.length} 条
@@ -468,7 +639,7 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
                     <div className="callout plain" style={{ marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
                       <span>这个网站另外提供了整站订阅源：</span>
                       {preview.candidates.map((c) => (
-                        <button key={c.url} className="chip" onClick={() => subscribe(c.url)}>
+                        <button key={c.url} className="chip" onClick={() => subscribe(c.url, c.browser)}>
                           {c.title || c.url}
                         </button>
                       ))}

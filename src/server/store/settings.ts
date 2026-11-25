@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: Settings = {
   wechatBridge: { url: "", folder: "公众号", autoArchive: true },
   translate: { provider: "ollama", baseUrl: "", model: "qwen3:8b", apiKey: "", targetLang: "zh-CN", auto: false, titles: false, display: "bilingual" },
   backup: { dir: "", auto: false, cron: "0 3 * * *" },
+  network: { proxy: "system", url: "", bypass: "localhost, 127.0.0.1, ::1, .local" },
 };
 
 const MASK = "••••";
@@ -56,6 +57,7 @@ export class SettingsStore {
       wechatBridge: { ...DEFAULT_SETTINGS.wechatBridge, ...(parsed.wechatBridge || {}) },
       translate: { ...DEFAULT_SETTINGS.translate, ...(parsed.translate || {}) },
       backup: { ...DEFAULT_SETTINGS.backup, ...(parsed.backup || {}) },
+      network: { ...DEFAULT_SETTINGS.network, ...(parsed.network || {}) },
     };
   }
 
@@ -69,6 +71,7 @@ export class SettingsStore {
       wechatBridge: { ...cur.wechatBridge, ...(patch.wechatBridge || {}) },
       translate: { ...cur.translate, ...(patch.translate || {}) },
       backup: { ...cur.backup, ...(patch.backup || {}) },
+      network: { ...cur.network, ...(patch.network || {}) },
     };
     if (patch.translate?.apiKey !== undefined && isMaskedKey(patch.translate.apiKey)) next.translate.apiKey = cur.translate.apiKey;
     next.defaultInterval = Math.max(5, Math.min(24 * 60, Math.round(next.defaultInterval)));
@@ -82,6 +85,11 @@ export class SettingsStore {
     next.translate.apiKey = (next.translate.apiKey || "").trim();
     next.backup.dir = (next.backup.dir || "").trim().replace(/[\\/]+$/, "");
     next.backup.cron = (next.backup.cron || "").trim() || DEFAULT_SETTINGS.backup.cron;
+    if (!["system", "manual", "off"].includes(next.network.proxy)) next.network.proxy = "system";
+    next.network.url = (next.network.url || "").trim();
+    // a bare "127.0.0.1:7897" is an HTTP proxy
+    if (next.network.url && !/^[a-z][a-z0-9+.-]*:\/\//i.test(next.network.url)) next.network.url = `http://${next.network.url}`;
+    next.network.bypass = (next.network.bypass ?? "").trim() || DEFAULT_SETTINGS.network.bypass;
     this.setRaw("app", JSON.stringify(next));
     return next;
   }

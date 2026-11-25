@@ -1,7 +1,8 @@
 import type { Hono } from "hono";
 import { z } from "zod";
 import type { App } from "../../app.ts";
-import { addFeed, previewSource } from "../../feeds/add.ts";
+import { addFeed, pluginAddress, previewSource } from "../../feeds/add.ts";
+import { getPlugin } from "../../feeds/plugins.ts";
 import { queueRefresh, refreshFeed } from "../../feeds/refresh.ts";
 import { exportOpml, importOpml } from "../../feeds/opml.ts";
 import { iconFile } from "../../feeds/icons.ts";
@@ -18,6 +19,7 @@ const CONFIG = z
     cookie: z.string().optional(),
     userAgent: z.string().optional(),
     contentSelector: z.string().optional(),
+    browser: z.boolean().optional(),
   })
   .partial();
 
@@ -64,6 +66,16 @@ export function registerFeeds(r: Hono, app: App): void {
   r.patch("/api/feeds/:id", async (c) => {
     const id = Number(c.req.param("id"));
     const body = PATCH.parse(await c.req.json());
+    const before = app.feeds.get(id);
+    if (before?.kind === "plugin" && body.config?.plugin && !body.url) {
+      const pluginId = body.config.plugin.id || before.config.plugin?.id || before.url;
+      const plugin = await getPlugin(app.cfg.pluginsDir, pluginId).catch(() => null);
+      // a secret Acorn made (a push key) stays when the form sends the parameters back without it
+      const params = { ...(before.config.plugin?.params || {}), ...(body.config.plugin.params || {}) };
+      body.config.plugin = { ...before.config.plugin, ...body.config.plugin, id: pluginId, params };
+      const address = pluginAddress(pluginId, params, plugin);
+      if (address !== before.url && !app.feeds.find("plugin", address)) body.url = address;
+    }
     const feed = app.feeds.update(id, body);
     if (!feed) return c.json({ error: "not_found" }, 404);
     if (body.url || body.config) queueRefresh(app, id, 10);

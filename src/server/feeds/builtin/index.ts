@@ -3,5 +3,8 @@ import type { AcornPlugin } from "../plugin-api.ts";
 import { zsxq } from "./zsxq.ts";
 import { canvas } from "./canvas.ts";
 import { jwb } from "./jwb.ts";
+import { json } from "./json.ts";
+import { watch } from "./watch.ts";
+import { inbox } from "./inbox.ts";
 
-export const BUILTIN: AcornPlugin[] = [zsxq, canvas, jwb];
+export const BUILTIN: AcornPlugin[] = [zsxq, canvas, jwb, json, watch, inbox];

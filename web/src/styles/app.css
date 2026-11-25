@@ -2686,6 +2686,101 @@ kbd {
   vertical-align: 1px;
 }
 
+/* 添加订阅: other ways into a source (RSSHub routes, the browser, page watch), push addresses */
+.ways {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.way-head {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+.way-head .muted {
+  font-weight: 400;
+  margin-left: 6px;
+}
+.way-list {
+  display: grid;
+  gap: 4px;
+}
+.way-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  text-align: left;
+}
+.way-item:hover,
+.way-item:focus-visible {
+  background: var(--bg-hover);
+  outline: none;
+}
+.way-item .t {
+  font-size: 13.5px;
+  font-weight: 560;
+  flex: none;
+}
+.way-item .d {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.way-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.draft {
+  display: grid;
+  gap: 10px;
+}
+.draft .form-grid {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.push-info {
+  display: grid;
+  gap: 12px;
+}
+.push-ways {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+.push-ways ul {
+  margin: 6px 0 10px;
+  padding-left: 20px;
+}
+.push-ways code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-sunken);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.push-example {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 /* 设置 → 班级日历 */
 .cal-card {
   margin-top: 12px;

@@ -51,6 +51,12 @@ src/server/
   accounts/            services.ts (the platforms Acorn signs in to: how a sign-in is obtained, checked, sent),
                        browser-login.ts (sign in in the user's ego-browser, read the cookies), use.ts (which
                        account a subscription reads with; the sign-in for a platform's own files, nothing else)
+  feeds/ (any source)  radar.ts (RSSHub radar rules: page address → routes; cached daily), hints.ts (feeds sites do not
+                       announce: GitHub, Reddit, Medium…), discover.ts feedLinks (links that say RSS, read to check),
+                       browser-read.ts (read / discover through the user's ego-browser: bot checks, script-filled pages),
+                       builtin/json.ts (JSON APIs mapped without code), builtin/watch.ts (page changes, plugin_state),
+                       builtin/inbox.ts + api/routes/inbox.ts (push addresses: POST /in/<key>)
+  util/proxy.ts        the outbound proxy (设置 → 网络; Node 24 http.setGlobalProxyFromEnv), network errors in words
   util/net.ts          addresses other devices can reach (LAN, Tailscale, public URL) for login links
   scheduler.ts         refresh loop, archive recheck, starred→archive sweep, Telegram digest, daily backup (croner)
   backup.ts            a second data directory: SQLite online backup + new snapshot folders copied once; never deletes
@@ -88,6 +94,11 @@ tests/                 vitest; fixtures are real pages saved from the web
   `ctx.loginExpired()`: the account turns 「登录已过期」 and its subscriptions wait for a new one instead of retrying.
   Articles of such subscriptions are archived from the feed copy and never rechecked (their pages show the server a login).
   Tests use stand-in servers (`tests/accounts.test.ts`, `tests/jwb.test.ts`).
+- **A source will not subscribe** → `previewSource` (feeds/add.ts) tries declared feeds, feedLinks, hints, RSSHub
+  radar, JSON, the page's list; a bot check is a `BotCheckError` (API `bot_check`), and `config.browser` reads the
+  subscription through ego-browser at every refresh. Unreachable from mainland China: the proxy (设置 → 网络).
+  New source types are built-in plugins (kind stays `plugin`; no schema change); a plugin's `ctx.state` persists per
+  subscription. Secret plugin params (a push key) stay out of the subscription's address and OPML. Tests: `tests/sources.test.ts`.
 - **A site blocks the server** → captures can go through the user's browser: `acorn archive <url> --browser`.
   On a captcha / login wall the page is handed to the user (ego-browser `handOff`) and listed at `/api/archives/pending`;
   after they pass it, `acorn resume <space id>` (or the banner in the web app) takes the page back and archives it.
@@ -134,4 +145,4 @@ tokens, stats, logs, opml, digest, events (SSE), img (image proxy), translate (+
 +/browser/:spaceId/:id/check/DELETE — never returns a credential), plugins/:id/choices,
 class-calendar (GET/PATCH, +/members POST/DELETE, /own-canvas, /sync, /link — classmates' links and the Feishu secret
 never come back out), addresses, login-link`. Class calendar: `/out/class-calendar.ics?key=` (a key of its own, not an API token). Text responses are gzipped for clients that accept it. One-time sign-in: `GET /login/<token>` (public; the token comes from `POST /api/login-link`). Archive files: `/files/archive/<path>`.
-Google Reader API: `/accounts/ClientLogin`, `/reader/api/0/*` (also under `/api/greader`). RSS out: `/out/*.xml?key=`.
+Google Reader API: `/accounts/ClientLogin`, `/reader/api/0/*` (also under `/api/greader`). RSS out: `/out/*.xml?key=` (an API token, or the output key from `/api/outputs/key`, which opens /out only). Push: `/in/<key>` (public; the key is the permission). Network: `/api/network` (+/test).

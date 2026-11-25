@@ -3,7 +3,10 @@
  * - bounded body size and timeout
  * - conditional GET (ETag / Last-Modified)
  * - charset detection from header, <meta>, or XML prolog (GBK / GB2312 / Big5 pages are common on .edu.cn sites)
+ * - network failures explained (a proxy that is not running, a blocked name; see proxy.ts)
  */
+import { describeNetworkError } from "./proxy.ts";
+
 export interface HttpOptions {
   headers?: Record<string, string>;
   etag?: string | null;
@@ -111,7 +114,9 @@ async function httpAttempt(url: string, opts: HttpOptions): Promise<HttpResult> 
     if (err instanceof HttpError) throw err;
     const e = err as Error & { cause?: { code?: string; message?: string } };
     const cause = e.cause?.code || e.cause?.message;
-    throw new HttpError(0, url, cause ? `${e.message}（${cause}）` : e.message);
+    // the code stays in the message: retries look for it
+    const plain = describeNetworkError(e.cause?.code, url, e.cause?.message || "");
+    throw new HttpError(0, url, plain ? `${plain}（${e.cause?.code}）` : cause ? `${e.message}（${cause}）` : e.message);
   } finally {
     clearTimeout(timer);
   }
@@ -146,6 +151,34 @@ export function sniffCharset(body: Buffer, contentType: string): string {
     head.match(/<meta[^>]+content=["'][^"']*charset=([\w-]+)/i)?.[1];
   if (meta) return normalizeCharset(meta) || "utf-8";
   return "utf-8";
+}
+
+/** A site's bot protection answered instead of the page (a JavaScript check a browser passes silently). */
+export class BotCheckError extends HttpError {
+  vendor: string;
+  constructor(status: number, url: string, vendor: string) {
+    let host = url;
+    try {
+      host = new URL(url).host;
+    } catch {
+      /* keep the address */
+    }
+    super(status, url, `${host} 的防护（${vendor}）拦下了服务器的请求：浏览器能过这一关，服务器过不了。可以改用「用我的浏览器读取」`);
+    this.vendor = vendor;
+  }
+}
+
+/** Which bot protection, if any, answered in place of the page. */
+export function botCheck(res: Pick<HttpResult, "status" | "headers" | "body" | "contentType">): string | null {
+  const h = (k: string) => res.headers.get(k) || "";
+  if (/challenge|captcha/i.test(h("x-amzn-waf-action"))) return "AWS WAF";
+  if (/challenge/i.test(h("cf-mitigated"))) return "Cloudflare";
+  if (res.status !== 403 && res.status !== 503 && res.status !== 429 && res.status !== 202) return null;
+  const head = res.body.subarray(0, 6000).toString("latin1");
+  if (/cloudflare/i.test(h("server")) && /Just a moment|cf-chl|challenge-platform/i.test(head)) return "Cloudflare";
+  if (/ddos-guard/i.test(h("server")) || /DDoS-Guard/.test(head)) return "DDoS-Guard";
+  if (/AkamaiGHost/i.test(h("server")) && /Access Denied/i.test(head)) return "Akamai";
+  return null;
 }
 
 export function decodeBody(body: Buffer, contentType = ""): string {

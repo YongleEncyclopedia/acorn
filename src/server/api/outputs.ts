@@ -7,6 +7,7 @@
  * The key is an API token (Settings → Agent 与 API 令牌).
  */
 import { timingSafeEqual } from "node:crypto";
+import { randomToken } from "../util/text.ts";
 import { classIcs } from "../calendar/index.ts";
 import type { Hono, Context } from "hono";
 import type { App } from "../app.ts";
@@ -56,9 +57,22 @@ ${i.author ? `<dc:creator>${esc(i.author)}</dc:creator>` : ""}
 `;
 }
 
+/** The key of the RSS addresses (设置 → 订阅源 → RSS 地址): it opens /out/* and nothing else. Made on first use. */
+export function outputKey(app: App, fresh = false): string {
+  let key = app.settings.getRaw("_outputKey");
+  if (!key || fresh) {
+    key = `out_${randomToken(18)}`;
+    app.settings.setRaw("_outputKey", key);
+  }
+  return key;
+}
+
 function authorized(app: App, c: Context): boolean {
   const key = c.req.query("key") || bearer(c) || "";
-  return !!(key && app.tokens.verify(key));
+  if (!key) return false;
+  const own = app.settings.getRaw("_outputKey");
+  if (own && key.length === own.length && timingSafeEqual(Buffer.from(key), Buffer.from(own))) return true;
+  return !!app.tokens.verify(key);
 }
 
 interface Row {
@@ -73,6 +87,10 @@ interface Row {
 }
 
 export function registerOutputs(r: Hono, app: App): void {
+  // behind the login (under /api): the key, and a new one that retires the old addresses
+  r.get("/api/outputs/key", (c) => c.json({ key: outputKey(app) }));
+  r.post("/api/outputs/key", (c) => c.json({ key: outputKey(app, true) }));
+
   const entries = (where: string, params: Param[], limit = 50): Item[] =>
     app.db
       .all<Row>(`select id, title, url, guid, sort_at, author, content, full_content from entries e where ${where} order by sort_at desc limit ?`, ...params, limit)

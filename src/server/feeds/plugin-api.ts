@@ -45,8 +45,16 @@ export interface PluginAccount {
   jar?: Record<string, Record<string, string>>;
 }
 
+/** What a source keeps between fetches, per subscription (JSON values). In a preview it lasts for that one run. */
+export interface PluginState {
+  get: <T = unknown>(key: string) => T | undefined;
+  set: (key: string, value: unknown) => void;
+}
+
 export interface PluginContext {
   params: Record<string, string>;
+  /** Kept from one fetch of this subscription to the next. */
+  state: PluginState;
   fetchText: (url: string, opts?: RequestOptions) => Promise<string>;
   fetchJson: <T = unknown>(url: string, opts?: RequestOptions) => Promise<T>;
   /** Any GET request. Does not throw on error statuses, and gives the headers (pagination links, a refused sign-in…). */
@@ -71,6 +79,8 @@ export interface AcornPlugin {
   account?: string;
   /** The choices of a `fromAccount` parameter (the 星球 the account joined…). */
   choices?: (ctx: PluginContext, key: string) => Promise<{ value: string; label: string }[]>;
+  /** Built-in only: where 添加订阅 lists it (default: with the sources that need an account when it has `account`). */
+  group?: "account" | "general" | "hidden";
   fetch: (ctx: PluginContext) => Promise<PluginResult>;
 }
 

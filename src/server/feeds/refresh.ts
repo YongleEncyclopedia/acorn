@@ -75,7 +75,7 @@ export async function refreshFeed(app: App, feedId: number): Promise<RefreshResu
   if (!feed) return { added: 0, error: "订阅源不存在" };
   const started = Date.now();
   try {
-    const res = await fetchSource(app, { kind: feed.kind, url: feed.url, config: feed.config, etag: feed.etag, lastModified: feed.lastModified });
+    const res = await fetchSource(app, { kind: feed.kind, url: feed.url, config: feed.config, etag: feed.etag, lastModified: feed.lastModified, feedId: feed.id });
     if (res.notModified) {
       app.feeds.recordSuccess(feed.id, Date.now(), nextFetchAt(app, feed, false), res.etag, res.lastModified);
       app.feeds.log(feed.id, { at: started, status: "not_modified", added: 0, ms: Date.now() - started, error: null });

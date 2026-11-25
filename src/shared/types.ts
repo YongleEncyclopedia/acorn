@@ -39,6 +39,11 @@ export interface FeedConfig {
   userAgent?: string;
   /** Feed-specific content selector used when extracting full text. */
   contentSelector?: string;
+  /**
+   * Read through the user's own browser (ego-browser) instead of the server: for sites whose bot protection stops
+   * servers, and for pages whose list is filled in by scripts (the rendered page is read).
+   */
+  browser?: boolean;
 }
 
 export interface Feed {
@@ -241,6 +246,26 @@ export interface Settings {
   translate: TranslateSettings;
   /** A second data directory kept up to date: empty dir = off; cron = when the daily copy runs. */
   backup: { dir: string; auto: boolean; cron: string };
+  /** How the server reaches the internet. */
+  network: NetworkSettings;
+}
+
+/** system: the proxy this computer uses (environment, or macOS network settings); manual: `url`; off: direct. */
+export interface NetworkSettings {
+  proxy: "system" | "manual" | "off";
+  url: string;
+  /** Hosts that never go through the proxy, comma separated (local services, the campus network). */
+  bypass: string;
+}
+
+/** What the server does about the proxy right now. */
+export interface NetworkStatus {
+  /** The proxy in use ("" = direct). */
+  active: string;
+  /** The proxy this computer is set to use, if any. */
+  system: string;
+  /** This Node can use a proxy at all (Node 24+). */
+  supported: boolean;
 }
 
 export interface BackupReport {
@@ -413,6 +438,12 @@ export interface PluginParam {
   options?: { value: string; label: string }[];
   /** The choices come from the signed-in account (the 星球 it joined…): GET /api/plugins/:id/choices. */
   fromAccount?: boolean;
+  /** Not shown in forms (filled in by Acorn). */
+  hidden?: boolean;
+  /** Filled with a random value when a subscription is made without it (a push address's token). */
+  generate?: boolean;
+  /** Left out of the subscription's address and of OPML exports (a push token). */
+  secret?: boolean;
 }
 
 export interface PluginInfo {
@@ -424,6 +455,8 @@ export interface PluginInfo {
   builtin?: boolean;
   /** The platform whose 账号 it reads with (an AccountService id). */
   account?: string;
+  /** Where 添加订阅 lists it: sources that need an account, general sources (JSON, page watch), or nowhere (push). */
+  group?: "account" | "general" | "hidden";
   error?: string;
 }
 
@@ -449,10 +482,26 @@ export interface FeedPreview {
   siteUrl: string | null;
   description: string | null;
   items: PreviewItem[];
-  /** When the input was a web page, the feeds discovered on it. */
-  candidates: { url: string; title: string; kind: FeedKind; guessed?: boolean }[];
+  /** When the input was a web page, the feeds discovered on it. `browser`: only the user's browser can read it. */
+  candidates: { url: string; title: string; kind: FeedKind; guessed?: boolean; browser?: boolean }[];
   /** Auto-detected HTML list rule when the page has no feed. */
   suggestedRule: HtmlRule | null;
+  /** RSSHub routes for this address (from RSSHub's radar rules): platforms that block servers or have no feed. */
+  rsshub?: RsshubMatch[];
+  /** The address answers JSON: how its items map to articles (the `json` source's parameters). */
+  json?: Record<string, string> | null;
+  /** Why the address itself could not be read, when other ways are still offered. */
+  problem?: string;
+  /** Read through the user's browser: subscribing keeps reading it that way (FeedConfig.browser). */
+  browser?: boolean;
+}
+
+/** An RSSHub route that serves a page, worked out from RSSHub's radar rules. */
+export interface RsshubMatch {
+  title: string;
+  route: string;
+  /** The route's documentation (what its parameters mean, whether it needs a cookie). */
+  docs?: string;
 }
 
 export interface SearchResults {
