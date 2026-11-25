@@ -55,12 +55,16 @@ describe("backup", () => {
   it("backs up into a second data directory, copying each snapshot once", async () => {
     expect(checkBackupDir(app, path.join(dataDir, "backup"))).toMatch(/数据目录/);
     expect(checkBackupDir(app, path.dirname(dataDir))).toMatch(/数据目录/);
+    app.accounts.save("canvas", "https://oc.sjtu.edu.cn", "张三", { token: "canvas-SECRET-1" });
     const first = await runBackup(app, backupDir);
     expect(first.error).toBeNull();
     expect(first).toMatchObject({ ok: true, snapshots: 1, copied: 1 });
     const db = new DatabaseSync(path.join(backupDir, "acorn.db"));
     expect((db.prepare("select count(*) as n from archives").get() as { n: number }).n).toBe(1);
+    // the account is there, its sign-in is not (the backup may sit in iCloud or on a NAS)
+    expect(db.prepare("select name, secret, status from accounts").all()).toEqual([{ name: "张三", secret: "{}", status: "expired" }]);
     db.close();
+    expect(app.accounts.credential(app.accounts.list()[0].id)!.token).toBe("canvas-SECRET-1");
     const snap = app.archives.latestSnapshot(1)!;
     expect(existsSync(path.join(backupDir, "archive", snap.dir, "meta.json"))).toBe(true);
     expect(existsSync(path.join(backupDir, "archive", snap.dir, "assets"))).toBe(true);

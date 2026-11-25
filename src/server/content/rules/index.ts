@@ -7,6 +7,7 @@ import { wechat } from "./wechat.ts";
 import { zhihu } from "./zhihu.ts";
 import { xiaohongshu } from "./xiaohongshu.ts";
 import { sspai } from "./sspai.ts";
+import { zsxq } from "./zsxq.ts";
 import { coverage, decodeEntities, htmlToText } from "../../util/text.ts";
 
 export interface RuleResult {
@@ -35,7 +36,7 @@ export interface SiteRule {
   fixUrl?: (url: URL) => string | null;
 }
 
-export const RULES: SiteRule[] = [wechat, zhihu, xiaohongshu, sspai];
+export const RULES: SiteRule[] = [wechat, zhihu, xiaohongshu, sspai, zsxq];
 
 export function ruleFor(url: string): SiteRule | null {
   let u: URL;

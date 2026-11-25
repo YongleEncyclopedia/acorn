@@ -10,6 +10,7 @@ import { detectBlocked, detectGone, ruleFor, stillShows } from "../content/rules
 import { toMarkdown } from "../content/markdown.ts";
 import { parseMhtml, type Mhtml } from "./mhtml.ts";
 import { localizeAssets } from "./assets.ts";
+import { assetHeaders, readsWithAccount } from "../accounts/use.ts";
 import { renderArchivePage } from "./template.ts";
 import { logger } from "../util/log.ts";
 
@@ -112,7 +113,9 @@ export async function capture(app: App, input: CaptureInput): Promise<CaptureRes
   const previous = existing ? app.archives.latestSnapshot(existing.id) : undefined;
   const known = (previous && snapshotText(app, previous.dir)) || entryText;
   // Sites like WeChat answer every server fetch with a captcha; when the feed already has the article, keep that.
-  const feedCopyOnly = !html && input.method === "fetch" && entryText.length > 200 && !!ruleFor(input.url)?.preferFeedCopy;
+  // So do platforms read with the user's sign-in (知识星球, Canvas): their pages are a login or an empty app shell.
+  const signedIn = !!entryHtml && (await readsWithAccount(app, feed));
+  const feedCopyOnly = !html && input.method === "fetch" && ((entryText.length > 200 && !!ruleFor(input.url)?.preferFeedCopy) || signedIn);
   if (!html && input.method !== "feed" && !feedCopyOnly) {
     try {
       const res = await httpGet(input.url, {
@@ -160,7 +163,9 @@ export async function capture(app: App, input: CaptureInput): Promise<CaptureRes
   }
   let method = input.method;
   const onlyTitle = !!entry && entryText.replace(/\s+/g, "") === (entry.title || "").replace(/\s+/g, "");
-  if (!article && entry && entryText.length > 20 && !onlyTitle) {
+  // a short post, or one that is only a picture, is the whole article when it comes from a signed-in platform
+  const usable = entryText.length > 20 || (signedIn && (!!entryText || /<img\b/i.test(entryHtml || "")));
+  if (!article && entry && usable && !onlyTitle) {
     article = fromEntry();
     if (method === "fetch") method = "feed";
     if (!gone && !blocked && !feedCopyOnly) warnings.push("网页正文提取失败，使用订阅源中的内容");
@@ -212,7 +217,14 @@ export async function capture(app: App, input: CaptureInput): Promise<CaptureRes
   const abs = path.join(app.cfg.archiveDir, snapDir);
   mkdirSync(abs, { recursive: true });
 
-  const assets = await localizeAssets(article.contentHtml, { pageUrl: finalUrl, dir: abs, mhtml, leadImage: article.leadImage || entry?.image || null, userAgent: app.cfg.pageUserAgent });
+  const assets = await localizeAssets(article.contentHtml, {
+    pageUrl: finalUrl,
+    dir: abs,
+    mhtml,
+    leadImage: article.leadImage || entry?.image || null,
+    userAgent: app.cfg.pageUserAgent,
+    headersFor: (u) => assetHeaders(app, u),
+  });
   if (assets.failed.length) warnings.push(`${assets.failed.length} 张图片未能保存，保留了远程地址`);
 
   const words = countWords(text);

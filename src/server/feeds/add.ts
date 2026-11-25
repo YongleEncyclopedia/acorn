@@ -1,6 +1,7 @@
 import type { App } from "../app.ts";
 import type { FeedConfig, FeedKind, FeedPreview, FullTextMode, PreviewItem } from "../../shared/types.ts";
 import { fetchSource, rsshubBase, type SourceResult } from "./source.ts";
+import { getPlugin } from "./plugins.ts";
 import { parseRsshubInput } from "./rsshub.ts";
 import { NotAFeedError, parseFeedText } from "./parse.ts";
 import { discoverFeeds, guessFeedUrls } from "./discover.ts";
@@ -61,7 +62,7 @@ export async function previewSource(app: App, src: SourceInput): Promise<FeedPre
   const base: FeedPreview = { kind, url, resolvedUrl: url, title: "", siteUrl: null, description: null, items: [], candidates: [], suggestedRule: null };
 
   if (kind === "plugin" || kind === "rsshub" || (kind === "html" && config.html?.item)) {
-    const res = await fetchSource(app, { kind, url, config: kind === "plugin" ? { ...config, plugin: { id: url, params: config.plugin?.params || {} } } : config });
+    const res = await fetchSource(app, { kind, url, config: kind === "plugin" ? { ...config, plugin: { ...config.plugin, id: url, params: config.plugin?.params || {} } } : config });
     return { ...base, resolvedUrl: res.resolvedUrl, title: res.title, siteUrl: res.siteUrl, description: res.description, items: toPreviewItems(res), suggestedRule: config.html || null };
   }
 
@@ -115,7 +116,7 @@ export async function previewSource(app: App, src: SourceInput): Promise<FeedPre
 export async function addFeed(app: App, input: AddFeedInput): Promise<{ feed: FeedInternal; existed: boolean; added: number; error?: string }> {
   let { kind, url } = classifyInput(app, input.input, input.kind);
   let config: FeedConfig = input.config || {};
-  if (kind === "plugin") config = { ...config, plugin: { id: url, params: config.plugin?.params || {} } };
+  if (kind === "plugin") config = { ...config, plugin: { ...config.plugin, id: url, params: config.plugin?.params || {} } };
 
   if (kind === "feed" && !input.kind) {
     const preview = await previewSource(app, { input: url, kind: "feed", config });
@@ -136,6 +137,16 @@ export async function addFeed(app: App, input: AddFeedInput): Promise<{ feed: Fe
     config = { ...config, html: preview.suggestedRule };
   }
 
+  // A plugin is subscribed once per set of parameters (two 星球, Canvas announcements and to-dos): its address
+  // carries them, since a subscription's address is unique. Its id stays in config.plugin.
+  let fullText = input.fullText;
+  if (kind === "plugin") {
+    const plugin = await getPlugin(app.cfg.pluginsDir, config.plugin!.id).catch(() => null);
+    const shown = Object.entries(config.plugin?.params || {}).filter(([, v]) => v !== "");
+    if (shown.length) url = `${url}?${new URLSearchParams(shown.sort(([a], [b]) => a.localeCompare(b))).toString()}`;
+    // platforms behind a sign-in hand over whole articles, and their pages show nothing to a server without it
+    if (plugin?.account) fullText = "never";
+  }
   const existing = app.feeds.find(kind, url);
   if (existing) return { feed: existing, existed: true, added: 0 };
   let folderId = input.folderId ?? null;
@@ -146,13 +157,14 @@ export async function addFeed(app: App, input: AddFeedInput): Promise<{ feed: Fe
     customTitle: input.title?.trim() || null,
     folderId,
     config,
-    fullText: input.fullText,
+    fullText,
     autoArchive: input.autoArchive,
     fetchInterval: input.fetchInterval ?? null,
   });
   const r = await refreshFeed(app, feed.id);
   // A notice page keeps months of old items: only the last two weeks (or, without dates, nothing) start out unread.
-  if (kind === "html") {
+  // Plugins are lists of notices and posts too (a semester of course announcements, a 星球's history).
+  if (kind === "html" || kind === "plugin") {
     const dated = !!app.db.get("select 1 from entries where feed_id = ? and published_at is not null limit 1", feed.id);
     app.entries.markRead({ feedId: feed.id, before: dated ? Date.now() - 14 * 86_400_000 : Date.now() });
   }

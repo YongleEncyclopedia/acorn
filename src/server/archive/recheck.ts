@@ -4,6 +4,7 @@ import { detectBlocked, detectGone, stillShows } from "../content/rules/index.ts
 import { extractArticle } from "../content/extract.ts";
 import { similarity } from "../util/text.ts";
 import { capture, snapshotText } from "./capture.ts";
+import { readsWithAccount } from "../accounts/use.ts";
 import type { SourceStatus } from "../../shared/types.ts";
 import { logger } from "../util/log.ts";
 
@@ -20,6 +21,13 @@ export async function recheckArchive(app: App, archiveId: number): Promise<{ sta
   if (!a) throw new Error("存档不存在");
   if (!/^https?:/i.test(a.url)) return { status: a.source_status };
   const now = Date.now();
+  // A post from a platform read with the user's sign-in (知识星球, Canvas): the server would see a login page or an
+  // empty app shell there, and take it for a change. Nothing can be learned by visiting; it is left alone.
+  const entry = a.entry_id ? app.entries.row(a.entry_id) : undefined;
+  if (entry && (await readsWithAccount(app, app.feeds.get(entry.feed_id)))) {
+    app.archives.setSourceStatus(archiveId, a.source_status === "gone" ? "gone" : "unknown", now);
+    return { status: a.source_status === "gone" ? "gone" : "unknown", reason: "原文要登录后才能看，松果不去回访" };
+  }
   let res;
   try {
     res = await httpGet(a.url, { userAgent: app.cfg.pageUserAgent, accept: "text/html,*/*;q=0.8", timeoutMs: 30_000 });

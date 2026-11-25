@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Globe, Puzzle, Rss, Sparkles, Wand2 } from "lucide-react";
 import { Dialog } from "../components/Dialog.tsx";
 import { Segmented, Switch } from "../components/Controls.tsx";
@@ -8,7 +8,8 @@ import { api } from "../lib/api.ts";
 import { keys, useBootstrap } from "../lib/queries.ts";
 import { shortDate } from "../lib/format.ts";
 import { toast, toastError, ui } from "../lib/store.ts";
-import type { FeedConfig, FeedKind, FeedPreview, FullTextMode, HtmlRule, PreviewItem } from "../../../src/shared/types.ts";
+import { AccountPicker } from "../components/ConnectAccount.tsx";
+import type { FeedConfig, FeedKind, FeedPreview, FullTextMode, HtmlRule, PluginInfo, PluginParam, PreviewItem } from "../../../src/shared/types.ts";
 
 const KIND_LABEL: Record<FeedKind, string> = { feed: "RSS", rsshub: "RSSHub", html: "网页", plugin: "插件" };
 
@@ -16,8 +17,8 @@ export function KindBadge({ kind }: { kind: FeedKind }) {
   return <span className={`badge ${kind === "html" ? "warn" : kind === "rsshub" ? "accent" : kind === "plugin" ? "ok" : ""}`}>{KIND_LABEL[kind]}</span>;
 }
 
-export function PreviewList({ items }: { items: PreviewItem[] }) {
-  if (!items.length) return <div className="callout plain">没有读到条目。</div>;
+export function PreviewList({ items, empty = "没有读到条目。" }: { items: PreviewItem[]; empty?: string }) {
+  if (!items.length) return <div className="callout plain">{empty}</div>;
   return (
     <div className="preview-list">
       {items.slice(0, 8).map((it, i) => (
@@ -99,6 +100,58 @@ const RSSHUB_EXAMPLES = [
   { label: "少数派 Matrix", route: "/sspai/matrix" },
 ];
 
+const TYPE_IT = "__type__";
+
+/** One plugin parameter: a menu of fixed choices, the account's own (the 星球 it joined…), or typed. */
+export function ParamField({ pluginId, param, account, value, onChange }: { pluginId: string; param: PluginParam; account: number | null; value: string; onChange: (v: string) => void }) {
+  const [typed, setTyped] = useState(false);
+  const choices = useQuery({
+    queryKey: ["plugin-choices", pluginId, param.key, account],
+    queryFn: () => api.pluginChoices(pluginId, param.key, account),
+    enabled: !!param.fromAccount && !!account,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const list = choices.data || [];
+  // the first of the account's choices, until another is picked
+  useEffect(() => {
+    if (param.fromAccount && !typed && !value && list[0]) onChange(list[0].value);
+  }, [param.fromAccount, typed, value, list, onChange]);
+  if (param.options?.length) {
+    return (
+      <select className="field" value={value || param.options[0].value} onChange={(e) => onChange(e.target.value)}>
+        {param.options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+  if (param.fromAccount && !typed && (choices.isLoading || list.length)) {
+    return (
+      <select className="field" value={value} disabled={choices.isLoading} onChange={(e) => (e.target.value === TYPE_IT ? setTyped(true) : onChange(e.target.value))}>
+        {choices.isLoading && <option value="">正在读取…</option>}
+        {list.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+        <option value={TYPE_IT}>手动填写…</option>
+      </select>
+    );
+  }
+  return (
+    <>
+      <input className="field" placeholder={param.placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
+      {param.fromAccount && choices.isError && <div className="help">没能读到可选项：{(choices.error as Error).message}</div>}
+    </>
+  );
+}
+
+/** A plugin's parameters as they start out: menus on their first choice. */
+const startParams = (p: PluginInfo | undefined): Record<string, string> => Object.fromEntries((p?.params || []).filter((x) => x.options?.length).map((x) => [x.key, x.options![0].value]));
+
 function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () => void }) {
   const boot = useBootstrap();
   const qc = useQueryClient();
@@ -106,7 +159,8 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
   const [tab, setTab] = useState<"url" | "rsshub" | "plugin">("url");
   const [input, setInput] = useState(initial || "");
   const [pluginId, setPluginId] = useState(boot.data?.plugins.find((p) => !p.error)?.id || "");
-  const [params, setParams] = useState<Record<string, string>>({});
+  const [params, setParams] = useState<Record<string, string>>(() => startParams(boot.data?.plugins.find((p) => p.id === pluginId)));
+  const [accountId, setAccountId] = useState<number | null>(null);
   const [preview, setPreview] = useState<FeedPreview | null>(null);
   const [rule, setRule] = useState<HtmlRule | null>(null);
   const [error, setError] = useState("");
@@ -120,7 +174,20 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
   const plugin = boot.data?.plugins.find((p) => p.id === pluginId);
 
   const kind: FeedKind | undefined = tab === "rsshub" ? "rsshub" : tab === "plugin" ? "plugin" : preview?.kind === "html" && rule ? "html" : undefined;
-  const config: FeedConfig | undefined = tab === "plugin" ? { plugin: { id: pluginId, params } } : kind === "html" && rule ? { html: rule } : undefined;
+  const config: FeedConfig | undefined =
+    tab === "plugin" ? { plugin: { id: pluginId, params, ...(plugin?.account && accountId ? { account: accountId } : {}) } } : kind === "html" && rule ? { html: rule } : undefined;
+  const choosePlugin = (id: string) => {
+    const p = boot.data?.plugins.find((x) => x.id === id);
+    setPluginId(id);
+    setParams(startParams(p));
+    setAccountId(null);
+    setPreview(null);
+    setError("");
+    // platforms behind a sign-in hand over whole articles; their pages show a server nothing
+    setFullText(p?.account ? "never" : "auto");
+  };
+  const pickAccount = useCallback((id: number | null) => setAccountId(id), []);
+  const needsAccount = !!plugin?.account && !accountId;
   const source = tab === "plugin" ? pluginId : tab === "rsshub" ? (input.startsWith("rsshub://") ? input : `rsshub:/${input.startsWith("/") ? "" : "/"}${input}`) : input;
 
   const runPreview = async (override?: { input?: string; kind?: FeedKind; config?: FeedConfig }) => {
@@ -175,7 +242,8 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
   };
 
   const folders = boot.data?.folders || [];
-  const canSubscribe = !!preview && (preview.items.length > 0 || (preview.kind === "html" && !!rule)) && !preview.candidates.length;
+  // a plugin that ran without an error can be empty for now (no assignments due yet) and fill up later
+  const canSubscribe = !!preview && (preview.items.length > 0 || preview.kind === "plugin" || (preview.kind === "html" && !!rule)) && !preview.candidates.length;
 
   const options = (
     <div className="form-grid" style={{ marginTop: 16 }}>
@@ -249,6 +317,9 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
             setTab(t);
             setPreview(null);
             setError("");
+            // the plugin already chosen brings its own defaults (no full text for platforms behind a sign-in)
+            if (t === "plugin") choosePlugin(pluginId);
+            else setFullText("auto");
           }}
           options={[
             { value: "url", label: <><Globe size={14} />网址</> },
@@ -328,25 +399,36 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
       {tab === "plugin" &&
         (boot.data?.plugins.length ? (
           <div className="form-grid">
-            <select className="field" value={pluginId} onChange={(e) => setPluginId(e.target.value)}>
-              {boot.data.plugins.map((p) => (
-                <option key={p.id} value={p.id} disabled={!!p.error}>
-                  {p.name}
-                  {p.error ? "（加载失败）" : ""}
-                </option>
-              ))}
+            <select className="field" value={pluginId} onChange={(e) => choosePlugin(e.target.value)}>
+              {[
+                { label: "登录后订阅", list: boot.data.plugins.filter((p) => p.builtin) },
+                { label: "我的插件", list: boot.data.plugins.filter((p) => !p.builtin) },
+              ]
+                .filter((g) => g.list.length)
+                .map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.list.map((p) => (
+                      <option key={p.id} value={p.id} disabled={!!p.error}>
+                        {p.name}
+                        {p.error ? "（加载失败）" : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
             </select>
             {plugin?.description && <div className="callout plain">{plugin.description}</div>}
-            {plugin?.params.map((p) => (
-              <div key={p.key} className="form-row">
-                <label className="lbl">
-                  {p.label}
-                  {p.required ? "" : "（可选）"}
-                </label>
-                <input className="field" placeholder={p.placeholder} value={params[p.key] || ""} onChange={(e) => setParams({ ...params, [p.key]: e.target.value })} />
-              </div>
-            ))}
-            <button className="btn" style={{ justifySelf: "start" }} disabled={!pluginId || !!busy} onClick={() => runPreview()}>
+            {plugin?.account && <AccountPicker service={plugin.account} value={accountId} onChange={pickAccount} />}
+            {!needsAccount &&
+              plugin?.params.map((p) => (
+                <div key={`${pluginId}:${p.key}`} className="form-row">
+                  <label className="lbl">
+                    {p.label}
+                    {p.required || p.options?.length ? "" : "（可选）"}
+                  </label>
+                  <ParamField pluginId={pluginId} param={p} account={accountId} value={params[p.key] || ""} onChange={(v) => setParams((cur) => ({ ...cur, [p.key]: v }))} />
+                </div>
+              ))}
+            <button className="btn" style={{ justifySelf: "start" }} disabled={!pluginId || needsAccount || !!busy} onClick={() => runPreview()}>
               {busy === "preview" ? <span className="spinner" /> : <Wand2 size={16} />}
               运行预览
             </button>
@@ -403,7 +485,7 @@ function AddSourceDialog({ initial, onClose }: { initial?: string; onClose: () =
                   <div style={{ height: 12 }} />
                 </>
               )}
-              <PreviewList items={preview.items} />
+              <PreviewList items={preview.items} empty={preview.kind === "plugin" ? "现在还没有内容。订阅之后，有新的会自动出现。" : undefined} />
               {options}
             </>
           )}

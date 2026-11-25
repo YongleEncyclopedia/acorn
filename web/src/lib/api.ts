@@ -1,4 +1,7 @@
 import type {
+  Account,
+  AccountService,
+  BrowserLogin,
   ArchiveDetail,
   ArchiveSummary,
   Bootstrap,
@@ -183,4 +186,13 @@ export const api = {
   logs: () => get<{ at: number; level: string; scope: string; msg: string }[]>("/api/logs"),
   digestPreview: () => get<{ html: string; configured: boolean }>("/api/digest/preview"),
   digestSend: () => post<{ ok: boolean }>("/api/digest/send"),
+
+  // 账号: sign-ins to platforms such as 知识星球 and Canvas (the server keeps the credential)
+  accounts: () => get<{ services: AccountService[]; accounts: Account[] }>("/api/accounts"),
+  connectAccount: (body: { service: string; origin?: string; token?: string; cookie?: string }) => post<{ account: Account }>("/api/accounts", body),
+  browserLogin: (body: { service: string; origin?: string }) => post<BrowserLogin>("/api/accounts/browser", body),
+  browserLoginDone: (spaceId: number) => post<BrowserLogin>(`/api/accounts/browser/${spaceId}`),
+  checkAccount: (id: number) => post<{ account: Account }>(`/api/accounts/${id}/check`),
+  deleteAccount: (id: number) => del<{ ok: boolean }>(`/api/accounts/${id}`),
+  pluginChoices: (id: string, key: string, account?: number | null) => get<{ value: string; label: string }[]>(`/api/plugins/${encodeURIComponent(id)}/choices${qs({ key, account })}`),
 };

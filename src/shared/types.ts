@@ -32,7 +32,8 @@ export interface HtmlRule {
 
 export interface FeedConfig {
   html?: HtmlRule;
-  plugin?: { id: string; params?: Record<string, string> };
+  /** `account`: the 账号 (Settings → 账号) a plugin signs in with, for platforms that need one. */
+  plugin?: { id: string; params?: Record<string, string>; account?: number };
   headers?: Record<string, string>;
   cookie?: string;
   userAgent?: string;
@@ -296,6 +297,38 @@ export interface TranslationJob {
   model: string;
 }
 
+/** A platform Acorn can sign in to, to read what the user's own account sees there. */
+export interface AccountService {
+  id: string;
+  name: string;
+  /** Where it lives; services that run at many addresses (Canvas) let the user change it. */
+  origin: string;
+  originEditable: boolean;
+  /** Signing in in the user's own browser (ego-browser) is possible: Acorn reads the sign-in from there. */
+  browserLogin: boolean;
+  /** Signing in by hand: what to paste, and where to find it. */
+  manual: { kind: "token" | "cookie"; label: string; placeholder: string; steps: string[]; link?: string };
+}
+
+/** A sign-in to one platform. The credential itself never leaves the server. */
+export interface Account {
+  id: number;
+  service: string;
+  origin: string;
+  /** Who the platform says is signed in. */
+  name: string;
+  /** expired: the platform no longer accepts the sign-in; subscriptions using it wait for a new one. */
+  status: "ok" | "expired" | "error";
+  error: string | null;
+  checkedAt: number | null;
+  createdAt: number;
+  /** Subscriptions that read with it. */
+  feeds: number;
+}
+
+/** Signing in through the user's browser: done, or waiting for the user in the page Acorn opened. */
+export type BrowserLogin = { account: Account } | { waiting: true; spaceId: number; message: string };
+
 export interface WechatBridgeStatus {
   url: string;
   accounts: { id: string; title: string; feedId: number | null }[];
@@ -321,11 +354,26 @@ export interface Bootstrap {
   dataDir: string;
 }
 
+export interface PluginParam {
+  key: string;
+  label: string;
+  required?: boolean;
+  placeholder?: string;
+  /** Fixed choices, shown as a menu. */
+  options?: { value: string; label: string }[];
+  /** The choices come from the signed-in account (the 星球 it joined…): GET /api/plugins/:id/choices. */
+  fromAccount?: boolean;
+}
+
 export interface PluginInfo {
   id: string;
   name: string;
   description: string;
-  params: { key: string; label: string; required?: boolean; placeholder?: string }[];
+  params: PluginParam[];
+  /** Comes with Acorn (src/server/feeds/builtin) rather than from the plugins directory. */
+  builtin?: boolean;
+  /** The platform whose 账号 it reads with (an AccountService id). */
+  account?: string;
   error?: string;
 }
 

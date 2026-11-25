@@ -11,6 +11,7 @@ import { HighlightStore } from "./store/highlights.ts";
 import { TokenStore } from "./store/tokens.ts";
 import { TranslationStore } from "./store/translations.ts";
 import { ImportStore } from "./store/imports.ts";
+import { AccountStore } from "./store/accounts.ts";
 import { JobQueue } from "./jobs.ts";
 import type { Counts, ServerEvent } from "../shared/types.ts";
 
@@ -40,6 +41,7 @@ export interface App {
   tokens: TokenStore;
   translations: TranslationStore;
   imports: ImportStore;
+  accounts: AccountStore;
   events: EventBus;
   /** Network-bound background work (refresh, full text, archive). */
   jobs: JobQueue;
@@ -58,6 +60,7 @@ export function createApp(cfg: Config): App {
     tokens: new TokenStore(db),
     translations: new TranslationStore(db),
     imports: new ImportStore(db),
+    accounts: new AccountStore(db),
     events: new EventBus(),
     jobs: new JobQueue(5, 1500),
   };

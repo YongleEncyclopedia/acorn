@@ -4,6 +4,8 @@ import { httpGet, decodeBody, HttpError } from "../util/http.ts";
 import { parseFeedText, NotAFeedError, looksLikeHtml, type ParsedItem } from "./parse.ts";
 import { scrapeList } from "./html-source.ts";
 import { runPlugin } from "./plugins.ts";
+import { LoginExpiredError } from "./plugin-api.ts";
+import { accountFor, keepRenewed } from "../accounts/use.ts";
 import { rsshubUrl } from "./rsshub.ts";
 import { parseHTML } from "linkedom";
 
@@ -46,8 +48,22 @@ export async function fetchSource(app: App, spec: SourceSpec): Promise<SourceRes
   const { kind, config } = spec;
   if (kind === "plugin") {
     const pluginId = config.plugin?.id || spec.url;
-    const r = await runPlugin(app.cfg.pluginsDir, pluginId, config.plugin?.params || {}, config.userAgent || app.cfg.pageUserAgent);
-    return { notModified: false, resolvedUrl: `plugin:${pluginId}`, ...r, etag: null, lastModified: null };
+    const account = await accountFor(app, pluginId, config.plugin?.account);
+    const jarBefore = JSON.stringify(account?.jar);
+    try {
+      const r = await runPlugin(app.cfg.pluginsDir, pluginId, config.plugin?.params || {}, config.userAgent || app.cfg.pageUserAgent, account);
+      keepRenewed(app, account, jarBefore);
+      if (account) app.accounts.markWorking(account.id);
+      return { notModified: false, resolvedUrl: `plugin:${pluginId}`, ...r, etag: null, lastModified: null };
+    } catch (err) {
+      // the platform refused the sign-in: every subscription using it waits for a new one (设置 → 账号)
+      if (err instanceof LoginExpiredError && account) {
+        const msg = /重新登录/.test(err.message) ? err.message : `${err.message}，请在 设置 → 账号 里重新登录`;
+        app.accounts.setStatus(account.id, "expired", msg);
+        throw new LoginExpiredError(msg);
+      }
+      throw err;
+    }
   }
 
   const url = resolveSourceUrl(app, kind, spec.url);

@@ -13,7 +13,7 @@ const HTML_RULE = z.object({ item: z.string().min(1), title: z.string().optional
 const CONFIG = z
   .object({
     html: HTML_RULE.optional(),
-    plugin: z.object({ id: z.string(), params: z.record(z.string(), z.string()).optional() }).optional(),
+    plugin: z.object({ id: z.string(), params: z.record(z.string(), z.string()).optional(), account: z.number().int().optional() }).optional(),
     headers: z.record(z.string(), z.string()).optional(),
     cookie: z.string().optional(),
     userAgent: z.string().optional(),
