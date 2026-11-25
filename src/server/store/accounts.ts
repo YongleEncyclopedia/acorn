@@ -53,6 +53,9 @@ export function forgetSecrets(dbFile: string): void {
     // overwrite what is cleared, then rebuild the file: an older token can linger in free space otherwise
     db.exec("pragma secure_delete = on");
     db.exec("update accounts set secret = '{}', status = 'expired', error = '这是从副本恢复的账号：登录信息不随副本保存，请重新登录'");
+    // 班级日历: the classmates' links are theirs, the Feishu secret and the .ics key are the owner's
+    db.exec("delete from calendar_member_events; delete from calendar_members; delete from calendar_sync");
+    db.exec("update settings set value = json_set(value, '$.feishuAppSecret', '', '$.icsKey', '') where key = '_classCalendar'");
     db.exec("vacuum");
   } finally {
     db.close();

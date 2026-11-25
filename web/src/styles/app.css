@@ -2685,3 +2685,128 @@ kbd {
   margin-left: 8px;
   vertical-align: 1px;
 }
+
+/* 设置 → 班级日历 */
+.cal-card {
+  margin-top: 12px;
+}
+.cal-help {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+.bad-text {
+  color: var(--danger) !important;
+}
+.cal-more summary,
+.cal-steps summary {
+  width: fit-content;
+  font-size: 13.5px;
+  font-weight: 560;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.cal-more summary:hover,
+.cal-steps summary:hover {
+  color: var(--ink);
+}
+.cal-more textarea.field {
+  min-height: 72px;
+}
+.cal-steps ol {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+.cal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.cal-list > li {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+}
+.cal-day {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.cal-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.cal-list ul li {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.cal-time {
+  flex: none;
+  width: 92px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.cal-kind {
+  min-width: 0;
+  color: var(--ink);
+}
+.cal-kind.k-exam {
+  font-weight: 600;
+}
+.cal-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+}
+.cal-link code {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+}
+.cal-feishu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.cal-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.cal-actions .cal-help {
+  margin: 0;
+}
+@media (max-width: 560px) {
+  .cal-list > li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .cal-time {
+    width: 84px;
+  }
+  .cal-feishu {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

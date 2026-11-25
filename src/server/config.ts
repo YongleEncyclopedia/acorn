@@ -22,6 +22,8 @@ export interface Config {
   telegramToken: string;
   telegramChatId: string;
   feedUserAgent: string;
+  /** Feishu's open platform (open.larksuite.com for Lark), for the class calendar. */
+  feishuBase: string;
   pageUserAgent: string;
   egoBrowserBin: string;
   /** Internet Archive (Wayback Machine) used to rescue dead links. */
@@ -53,6 +55,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     telegramToken: env.TELEGRAM_BOT_TOKEN || "",
     telegramChatId: env.TELEGRAM_CHAT_ID || "",
     feedUserAgent: env.ACORN_FEED_UA || `Mozilla/5.0 (compatible; Acorn/0.1; personal feed reader)`,
+    feishuBase: (env.ACORN_FEISHU_BASE || "https://open.feishu.cn").replace(/\/+$/, ""),
     pageUserAgent: env.ACORN_PAGE_UA || BROWSER_UA,
     egoBrowserBin: env.ACORN_EGO_BROWSER || "ego-browser",
     waybackBase: (env.ACORN_WAYBACK_BASE || "https://web.archive.org").replace(/\/+$/, ""),

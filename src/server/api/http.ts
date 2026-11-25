@@ -13,6 +13,7 @@ import { registerTranslate } from "./routes/translate.ts";
 import { registerImports } from "./routes/imports.ts";
 import { registerData } from "./routes/data.ts";
 import { registerAccounts } from "./routes/accounts.ts";
+import { registerCalendar } from "./routes/calendar.ts";
 import { LoginExpiredError } from "../feeds/plugin-api.ts";
 import { registerGReader } from "./greader.ts";
 import { registerOutputs } from "./outputs.ts";
@@ -115,6 +116,7 @@ export function createHttp(app: App, hooks: Hooks = {}): Hono {
   registerImports(r, app);
   registerData(r, app);
   registerAccounts(r, app);
+  registerCalendar(r, app);
   registerGReader(r, app);
   registerOutputs(r, app);
 

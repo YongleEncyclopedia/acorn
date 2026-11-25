@@ -44,6 +44,10 @@ src/server/
                        outputs.ts (re-publish as RSS), auth.ts, content.ts (image proxy URL rewriting)
   translate/           engine.ts (Ollama / OpenAI-compatible / Anthropic, numbered-segment prompt), index.ts (job queue + cache),
                        summary.ts (key points, cached in the same table under `summary:<lang>`)
+  calendar/            班级日历: ics.ts (read / write iCalendar), canvas.ts (exams read out of the owner's Canvas
+                       announcements by the AI model, checked against the text and cached; planner due dates),
+                       merge.ts (everyone's items as counts, never names; course items only), feishu.ts (calendar v4
+                       sync, remembered in calendar_sync), store.ts, index.ts (refresh, .ics, sync every 3 hours)
   accounts/            services.ts (the platforms Acorn signs in to: how a sign-in is obtained, checked, sent),
                        browser-login.ts (sign in in the user's ego-browser, read the cookies), use.ts (which
                        account a subscription reads with; the sign-in for a platform's own files, nothing else)
@@ -128,5 +132,6 @@ imports (list/POST file/preview/:id/items/:id/retry/PATCH/DELETE — moving in f
 backup (status/POST run), highlights, search, settings,
 tokens, stats, logs, opml, digest, events (SSE), img (image proxy), translate (+/:id, /models, /test), summary, wechat-bridge (+/sync), accounts (list/POST token or cookie/browser sign-in
 +/browser/:spaceId/:id/check/DELETE — never returns a credential), plugins/:id/choices,
-addresses, login-link`. Text responses are gzipped for clients that accept it. One-time sign-in: `GET /login/<token>` (public; the token comes from `POST /api/login-link`). Archive files: `/files/archive/<path>`.
+class-calendar (GET/PATCH, +/members POST/DELETE, /own-canvas, /sync, /link — classmates' links and the Feishu secret
+never come back out), addresses, login-link`. Class calendar: `/out/class-calendar.ics?key=` (a key of its own, not an API token). Text responses are gzipped for clients that accept it. One-time sign-in: `GET /login/<token>` (public; the token comes from `POST /api/login-link`). Archive files: `/files/archive/<path>`.
 Google Reader API: `/accounts/ClientLogin`, `/reader/api/0/*` (also under `/api/greader`). RSS out: `/out/*.xml?key=`.

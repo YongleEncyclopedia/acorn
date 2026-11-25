@@ -329,6 +329,56 @@ export interface Account {
 /** Signing in through the user's browser: done, or waiting for the user in the page Acorn opened. */
 export type BrowserLogin = { account: Account } | { waiting: true; spaceId: number; message: string };
 
+/** 班级日历: a classmate who chose to share their Canvas calendar link. The link itself never comes back whole. */
+export interface ClassMember {
+  id: number;
+  name: string;
+  /** The link, masked: its host and the last characters, to tell links apart. */
+  link: string;
+  createdAt: number;
+  checkedAt: number | null;
+  error: string | null;
+  /** Items the link held at the last fetch. */
+  events: number;
+  /** The owner's own source (their Canvas announcements), not a classmate's link. */
+  own: boolean;
+}
+
+/** One item of the class calendar: how many classmates have it, never who. */
+export interface ClassEvent {
+  key: string;
+  kind: "exam" | "quiz" | "lab" | "presentation" | "assignment" | "event";
+  /** The course and title only when at least `minCount` classmates have it; otherwise the kind and the count. */
+  title: string;
+  course: string | null;
+  count: number;
+  /** From the owner's own Canvas (a course's announcement or due date), not only from classmates. */
+  mine: boolean;
+  start: number;
+  end: number;
+  allDay: boolean;
+  /** A due date: shown as the half hour before it. */
+  due: boolean;
+}
+
+export interface ClassCalendarConfig {
+  /** Below this many classmates, an item shows only its kind and count. */
+  minCount: number;
+  /** important: exams, quizzes, labs, presentations; all: every course item, homework included. */
+  include: "important" | "all";
+  feishuAppId: string;
+  feishuCalendarId: string;
+  feishuSyncedAt: number | null;
+  feishuError: string | null;
+}
+
+export interface ClassCalendar {
+  config: ClassCalendarConfig & { feishuSecretSet: boolean };
+  members: ClassMember[];
+  /** The next weeks of the class calendar. */
+  events: ClassEvent[];
+}
+
 export interface WechatBridgeStatus {
   url: string;
   accounts: { id: string; title: string; feedId: number | null }[];

@@ -1,6 +1,7 @@
 import type {
   Account,
   AccountService,
+  ClassCalendar,
   BrowserLogin,
   ArchiveDetail,
   ArchiveSummary,
@@ -194,5 +195,13 @@ export const api = {
   browserLoginDone: (spaceId: number) => post<BrowserLogin>(`/api/accounts/browser/${spaceId}`),
   checkAccount: (id: number) => post<{ account: Account }>(`/api/accounts/${id}/check`),
   deleteAccount: (id: number) => del<{ ok: boolean }>(`/api/accounts/${id}`),
+  // 班级日历
+  classCalendar: () => get<ClassCalendar>("/api/class-calendar"),
+  addClassLinks: (text: string) => post<{ added: number; failed: { name: string; error: string }[]; calendar: ClassCalendar }>("/api/class-calendar/members", { text }),
+  addOwnCanvas: () => post<ClassCalendar>("/api/class-calendar/own-canvas"),
+  removeClassMember: (id: number) => del<ClassCalendar>(`/api/class-calendar/members/${id}`),
+  patchClassCalendar: (body: { minCount?: number; include?: "important" | "all"; feishuAppId?: string; feishuAppSecret?: string; feishuCalendarId?: string }) => patch<ClassCalendar>("/api/class-calendar", body),
+  syncClassCalendar: () => post<{ feishu: { created: number; updated: number; removed: number } | null; calendar: ClassCalendar }>("/api/class-calendar/sync"),
+  classCalendarLink: () => post<{ path: string }>("/api/class-calendar/link"),
   pluginChoices: (id: string, key: string, account?: number | null) => get<{ value: string; label: string }[]>(`/api/plugins/${encodeURIComponent(id)}/choices${qs({ key, account })}`),
 };

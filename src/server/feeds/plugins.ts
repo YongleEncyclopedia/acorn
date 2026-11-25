@@ -71,7 +71,7 @@ export async function getPlugin(dir: string, id: string): Promise<AcornPlugin> {
   throw new Error(`找不到插件 ${id}`);
 }
 
-/** What a plugin runs with. */
+/** What a plugin runs with; also how other parts of Acorn read through a built-in plugin's helpers (the class calendar). */
 export function pluginContext(id: string, params: Record<string, string>, userAgent: string, account: PluginAccount | null): PluginContext {
   return {
     params,

@@ -6,6 +6,8 @@
  *   /out/starred.xml?key=…                read-later
  * The key is an API token (Settings → Agent 与 API 令牌).
  */
+import { timingSafeEqual } from "node:crypto";
+import { classIcs } from "../calendar/index.ts";
 import type { Hono, Context } from "hono";
 import type { App } from "../app.ts";
 import type { Param } from "../db/index.ts";
@@ -91,6 +93,15 @@ export function registerOutputs(r: Hono, app: App): void {
     if (!folder) return c.text("not found", 404);
     return send(c, rss(folder.name, app.cfg.publicUrl, entries("e.feed_id in (select id from feeds where folder_id = ?)", [id], 100)));
   });
+  // the class calendar: counts without names, behind a key of its own (设置 → 班级日历), never an API token
+  r.get("/out/class-calendar.ics", (c) => {
+    const want = app.calendar.state().icsKey;
+    const key = c.req.query("key") || "";
+    if (!want || key.length !== want.length || !timingSafeEqual(Buffer.from(key), Buffer.from(want))) return c.text("链接不对，或者已经换过新的", 401);
+    c.header("cache-control", "no-cache");
+    return c.body(classIcs(app), 200, { "content-type": "text/calendar; charset=utf-8" });
+  });
+
   r.get("/out/starred.xml", (c) => {
     if (!authorized(app, c)) return c.text("需要 key（API 令牌）", 401);
     return send(c, rss("松果 · 稍后读", app.cfg.publicUrl, entries("e.starred_at is not null", [], 100)));
