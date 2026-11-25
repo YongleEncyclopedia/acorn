@@ -319,6 +319,9 @@ export interface Bootstrap {
   egoBrowser: boolean;
   telegram: boolean;
   dataDir: string;
+  /** Where the program itself is installed (the repository, or inside the desktop app), and the port it serves on. */
+  appDir: string;
+  port: number;
 }
 
 export interface PluginInfo {

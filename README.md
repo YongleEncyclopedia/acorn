@@ -40,7 +40,28 @@
 
 > 截图里的订阅源、文章和配图都是为演示写的虚构内容。
 
-## 快速开始
+## 下载安装
+
+在 [Releases](https://github.com/YongleEncyclopedia/acorn/releases) 下载对应系统的安装包，装好就能用，不需要另装 Node.js：
+
+| 系统 | 安装包 |
+|---|---|
+| macOS（Apple 芯片 / Intel） | `Acorn-<版本>-mac-arm64.dmg` / `Acorn-<版本>-mac-x64.dmg` |
+| Windows | `Acorn-Setup-<版本>-x64.exe` |
+| Linux | `Acorn-<版本>-linux-x86_64.AppImage`，或 `.deb` |
+
+第一次打开时有两个选择：
+
+- **安在这台电脑上**：订阅、文章和存档都保存在这台电脑，松果开着就一直替你更新。手机、平板和别的电脑连到这里来读：菜单「其他设备访问这台电脑的地址」，或「设置 → 多设备 → 扫码在手机上登录」。数据默认在 `~/Library/Application Support/Acorn/data`（macOS）、`%APPDATA%\Acorn\data`（Windows）、`~/.config/Acorn/data`（Linux），也可以换到外接硬盘或云盘里的文件夹。
+- **连接已有的松果**：松果已经在另一台电脑或 NAS 上跑着，这里只是它的一个窗口，填它的地址就行。
+
+关掉窗口不会停止更新：macOS 上松果留在程序坞里，Windows 和 Linux 上留在托盘里；要彻底退出用菜单里的「退出」。
+
+- **macOS**：安装包没有经过 Apple 公证，第一次打开会被系统拦下。到「系统设置 → 隐私与安全性」点「仍要打开」，之后就正常了。
+- **Windows**：SmartScreen 可能提示「已保护你的电脑」，点「更多信息 → 仍要运行」。
+- **手机和平板**：用手机浏览器打开松果（扫码登录最方便），再「添加到主屏幕」，就是一个全屏的 App，读过的文章离线也能看。
+
+## 从源码运行
 
 需要 Node.js 22.18 或更新版本（服务端直接运行 TypeScript，数据库用 Node 自带的 SQLite，没有需要编译的依赖）。
 
@@ -147,7 +168,8 @@ data/archive/2026/10/<标题>-<id>/<时间戳>/
 
 ## 一直运行
 
-- **macOS 开机自启**：`scripts/install-launchd.sh`（卸载：`scripts/uninstall-launchd.sh`）
+- **桌面版**：菜单里勾上「开机时启动」（macOS、Windows），松果会在登录后悄悄启动，只在后台更新。
+- **macOS 开机自启（源码运行时）**：`scripts/install-launchd.sh`（卸载：`scripts/uninstall-launchd.sh`）
 - **Docker**：`ACORN_PASSWORD=你的密码 docker compose -f docker/compose.yml up -d`，同时会启动一个自建的 RSSHub。容器里不会出现网页上的「首次设置密码」，所以第一次的密码用环境变量给；之后在设置页改，或用 `docker compose -f docker/compose.yml exec acorn ./bin/acorn passwd 新密码`
 - **备份**：见下面「备份与导出」；手动的话，整个 `data/` 目录复制走即可
 
@@ -159,6 +181,8 @@ npm run dev:web    # 前端热更新，访问 http://localhost:5173
 npm test           # 测试
 npm run typecheck
 ```
+
+桌面版在 `desktop/`：先在项目根目录 `npm run build`，再 `cd desktop && npm install && npm start` 就能从源码启动；`npm run dist` 打出本机系统的安装包。发布新版时改 `package.json` 里的版本号，推送 `v<版本>` 标签，GitHub Actions 会在 macOS、Windows、Linux 上分别打包，放进一个草稿 Release，检查无误后在 GitHub 上发布。
 
 结构见 `AGENTS.md`；改代码前请先读它。
 

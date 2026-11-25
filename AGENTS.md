@@ -61,6 +61,12 @@ web/src/               React 19 + TanStack Query + wouter; views/*, components/*
                        through /api/settings instead
   lib/shell.ts         document title, focus mode (专注阅读), view transitions
   fonts.ts             the reading fonts, loaded as a separate stylesheet so they do not block the first paint
+  lib/desktop.ts       the reader inside the desktop app: its menu commands; `data-shell` for the macOS title bar
+src/server/lock.ts     data/.lock — one server per library; a second one on the same data exits, the app shows the first
+desktop/               the desktop app (Electron, its own package.json): main.ts (window, menus, tray, first-run choice),
+                       server.ts (runs src/server/main.ts as a utility process on Electron's Node), lib.ts (settings,
+                       addresses), menu.ts, preload.cjs (the only bridge into the page), welcome/ (first run, errors),
+                       stage.mjs + electron-builder.yml (installers), icons/make-icons.mjs (from web/public/icon.svg)
 plugins/               user plugins (TypeScript, hot-reloaded)
 tests/                 vitest; fixtures are real pages saved from the web
 ```
@@ -96,6 +102,13 @@ tests/                 vitest; fixtures are real pages saved from the web
   Anything that opens on top of the page calls `useLayer(onEscape)`; a dialog also gets `useFocusTrap`.
 - **Article typography** → `web/src/styles/reader.css`. Justification and the two-character indent apply to
   Chinese paragraphs only: `markScripts` (src/shared/article.ts) tags Latin-script paragraphs with `data-latin`.
+- **Desktop app** → after `npm run build`, `cd desktop && npm install && npm start` runs it from the repository. Its
+  window loads the same web app from the server it starts, so reader work happens in `web/src` as usual. It keeps its
+  settings (`shell.json`), logs and, unless moved, the library in `<appData>/Acorn` (`Acorn-dev` from the repository;
+  `ACORN_DESKTOP_HOME` overrides both). Installers: `npm run dist` there for this OS, or push a `v<version>` tag for all
+  three (draft release, `.github/workflows/desktop.yml`). The app ships the exact `npm ci --omit=dev` install, outside
+  electron-builder's own dependency collection, which loses nested packages; no asar, so the .ts files run as they are.
+  After changing `web/public/icon.svg`, run `npm run icons` in `desktop/`.
 - **A list query gets slow** → `EntryStore.listSql` builds every list. The 未读 and 在读 lists rely on partial
   indexes (migration 004) that SQLite only uses while the query repeats the index's condition literally;
   `tests/server.test.ts` checks the query plans.

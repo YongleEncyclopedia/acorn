@@ -452,6 +452,17 @@ function Backup({ s, save, stats }: { s: Settings; save: (patch: Partial<Setting
   );
 }
 
+/**
+ * The command that adds this Acorn to Claude Code as an MCP server. The program and the library are side by side
+ * in a repository checkout, but not in the desktop app, where the command has to say where the data is.
+ */
+function mcpCommand(b: Bootstrap): string {
+  const slash = (p: string) => p.replace(/\\/g, "/");
+  const quote = (p: string) => (/\s/.test(p) ? `"${p}"` : p);
+  const env = [slash(b.dataDir) !== `${slash(b.appDir)}/data` ? `-e ACORN_DATA_DIR=${quote(b.dataDir)}` : "", b.port !== 7700 ? `-e ACORN_URL=http://127.0.0.1:${b.port}` : ""].filter(Boolean);
+  return ["claude mcp add acorn", ...env, "-- node --disable-warning=ExperimentalWarning", quote(`${slash(b.appDir)}/src/mcp/server.ts`)].join(" ");
+}
+
 const SECTIONS: [id: string, label: string][] = [
   ["appearance", "阅读外观"],
   ["habits", "阅读习惯"],
@@ -786,7 +797,7 @@ export function SettingsPage() {
                   <b>让 Claude Code / Hermes 接管</b>
                   <span>项目根目录的 AGENTS.md 写清了一切。也可以把松果加为 MCP 服务器：</span>
                 </div>
-                <CodeLine text={`claude mcp add acorn -- node --disable-warning=ExperimentalWarning ${boot.data.dataDir.replace(/\/data$/, "")}/src/mcp/server.ts`} />
+                <CodeLine text={mcpCommand(boot.data)} />
               </div>
               <Tokens />
             </div>

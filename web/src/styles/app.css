@@ -2594,3 +2594,53 @@ kbd {
   flex: none;
   align-self: center;
 }
+
+/* ───────────────────────── Inside the desktop app ─────────────────────────
+   On macOS the app's window has no title bar. Its three buttons float over the top-left corner and the
+   reader's own top bars are what the window is dragged by. `data-shell` is set by lib/desktop.ts when the
+   reader runs in the app; `data-shell-fullscreen` by the app while the window is full screen (no buttons then).
+   Wide, the buttons sit in the 52px row of the bars, as in Mail; narrower than 980px there is no room beside
+   them, so every bar grows a 30px strip on top for them instead and the app moves them up into it
+   (desktop/preload.cjs tells it which layout is showing). */
+[data-shell="mac"] :is(.side-brand, .pane-head, .reader-bar, .lightbox-bar) {
+  -webkit-app-region: drag;
+}
+[data-shell="mac"] :is(.side-brand, .pane-head, .reader-bar, .lightbox-bar) :is(button, a, input) {
+  -webkit-app-region: no-drag;
+}
+/* whatever lies over the page takes its clicks back from the bars underneath */
+[data-shell="mac"] :is(.scrim, .lightbox-stage, .lightbox-nav, .popover, .notes-panel, .drawer-scrim, .toast, .verify-banner, .sel-bar, .outline, .fresh-pill) {
+  -webkit-app-region: no-drag;
+}
+@media (min-width: 981px) {
+  /* the sidebar is docked in the corner: its brand row sits below the buttons, the strip above is the handle */
+  [data-shell="mac"]:not([data-shell-fullscreen]) .side-brand {
+    padding-top: 44px;
+  }
+  /* 专注阅读 and the image viewer: a bar alone at the top, wide enough to step aside */
+  [data-shell="mac"]:not([data-shell-fullscreen]) :is(.shell[data-focus="true"] .reader-bar, .lightbox-bar) {
+    padding-left: 86px;
+  }
+}
+@media (max-width: 980px) {
+  /* the same variable that makes room for a phone's notch */
+  [data-shell="mac"]:not([data-shell-fullscreen]) {
+    --safe-t: 30px;
+  }
+}
+@media (max-width: 760px) {
+  /* a phone lets these scroll away while reading down; a window needs them, to be dragged by */
+  [data-shell="mac"] .reader-bar.hidden {
+    transform: none;
+  }
+  [data-shell="mac"] .pane-head.wide-head {
+    position: sticky;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: saturate(1.4) blur(16px);
+    -webkit-backdrop-filter: saturate(1.4) blur(16px);
+  }
+  [data-shell="mac"] .settings-nav {
+    top: calc(var(--topbar-h) + var(--safe-t));
+    padding-top: 0;
+  }
+}

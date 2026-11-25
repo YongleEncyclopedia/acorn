@@ -17,6 +17,7 @@ import { SearchPage, SearchPalette } from "./views/Search.tsx";
 import { VerifyBanner } from "./components/VerifyBanner.tsx";
 import { useHotkeys } from "./lib/hotkeys.ts";
 import { layerOpen } from "./lib/layers.ts";
+import { useDesktopCommands } from "./lib/desktop.ts";
 import { toast, ui } from "./lib/store.ts";
 import type { EntryView } from "../../src/shared/types.ts";
 
@@ -191,6 +192,7 @@ function Authed() {
     "?": () => ui.set({ shortcuts: true }),
   });
   useWarmPages();
+  useDesktopCommands();
   if (boot.isLoading) {
     return (
       <div className="auth">
