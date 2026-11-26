@@ -75,6 +75,19 @@ function bestTitle(a: Element | null, fallbackText: string): string {
   return text;
 }
 
+/**
+ * The selector of an entry's heading when it reads like a title: `h4.entry-title a` for a linked heading, `h2` for
+ * one whose link is elsewhere ("了解更多"). Rules use it as `title`; the link is then the heading's own, or the
+ * entry's first.
+ */
+function headingTitle(item: Element): string | null {
+  const h = item.querySelector("h1, h2, h3, h4, h5, h6");
+  if (!h || [...(h.textContent || "").replace(/\s+/g, "")].length < 4) return null;
+  const cls = (h.getAttribute("class") || "").split(/\s+/)[0];
+  const sel = h.tagName.toLowerCase() + (cls && /^[A-Za-z_][\w-]*$/.test(cls) ? `.${cssEscape(cls)}` : "");
+  return h.querySelector("a[href]") ? `${sel} a` : sel;
+}
+
 /** Apply a selector rule to an HTML list page. */
 export function scrapeList(html: string, pageUrl: string, rule: HtmlRule): ParsedItem[] {
   const { document } = parseHTML(html);
@@ -148,7 +161,7 @@ function inChrome(el: Element): boolean {
  */
 export function suggestRule(html: string, pageUrl: string): HtmlRule | null {
   const { document } = parseHTML(html);
-  let best: { score: number; container: Element; tag: string; cls: string; n: number; dateSel: string | null } | null = null;
+  let best: { score: number; container: Element; tag: string; cls: string; n: number; dateSel: string | null; titleSel: string | null } | null = null;
   for (const container of document.querySelectorAll("ul, ol, tbody, div, table, section, dl")) {
     const kids = [...container.children];
     if (kids.length < 4) continue;
@@ -164,10 +177,19 @@ export function suggestRule(html: string, pageUrl: string): HtmlRule | null {
       let withDate = 0;
       let textLen = 0;
       const dateTags = new Map<string, number>();
+      const headingSels = new Map<string, number>();
       for (const el of els) {
         const a = el.querySelector("a[href]") || (el.matches("a[href]") ? el : null);
         const t = bestTitle(a, "");
         if (a && [...t].length >= 6 && !/^javascript:/i.test(a.getAttribute("href") || "")) withLink += 1;
+        else if (a && !/^javascript:/i.test(a.getAttribute("href") || "")) {
+          // The first link is a picture or "了解更多"; the title is the entry's heading (blog themes, lab pages).
+          const sel = headingTitle(el);
+          if (sel) {
+            withLink += 1;
+            headingSels.set(sel, (headingSels.get(sel) || 0) + 1);
+          }
+        }
         const text = el.textContent || "";
         const dateEl = findDateElement(el);
         if (dateEl || DATE_PATTERN.test(text)) withDate += 1;
@@ -186,13 +208,23 @@ export function suggestRule(html: string, pageUrl: string): HtmlRule | null {
       if (!best || score > best.score) {
         const [tag, cls] = key.split("|");
         const topDate = [...dateTags.entries()].sort((a, b) => b[1] - a[1])[0];
-        best = { score, container, tag: tag.toLowerCase(), cls, n: els.length, dateSel: topDate && topDate[1] >= els.length * 0.6 ? topDate[0] : null };
+        const topHeading = [...headingSels.entries()].sort((a, b) => b[1] - a[1])[0];
+        best = {
+          score,
+          container,
+          tag: tag.toLowerCase(),
+          cls,
+          n: els.length,
+          dateSel: topDate && topDate[1] >= els.length * 0.6 ? topDate[0] : null,
+          titleSel: topHeading && topHeading[1] >= els.length * 0.6 ? topHeading[0] : null,
+        };
       }
     }
   }
   if (!best) return null;
   const item = `${selectorFor(best.container)} > ${best.tag}${best.cls && /^[A-Za-z_][\w-]*$/.test(best.cls) ? `.${cssEscape(best.cls)}` : ""}`;
   const rule: HtmlRule = { item };
+  if (best.titleSel) rule.title = best.titleSel;
   if (best.dateSel) rule.date = best.dateSel;
   // Validate: the generated selector must still find the items.
   return scrapeList(html, pageUrl, rule).length >= 3 ? rule : null;

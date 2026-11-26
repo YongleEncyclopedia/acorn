@@ -97,7 +97,7 @@ export async function previewSource(app: App, src: SourceInput): Promise<FeedPre
       throw err;
     }
     const pageUrl = e.finalUrl || url;
-    const candidates: FeedPreview["candidates"] = discoverFeeds(e.html, pageUrl);
+    const candidates: FeedPreview["candidates"] = await checkDeclared(app, discoverFeeds(e.html, pageUrl));
     const rule = suggestRule(e.html, pageUrl);
     // The site's own patterns (GitHub releases…) and links that say RSS, kept once read as feeds; the usual paths
     // only when nothing else turned up, since they are site-wide guesses.
@@ -120,6 +120,27 @@ export async function previewSource(app: App, src: SourceInput): Promise<FeedPre
       rsshub: await routes,
     };
   }
+}
+
+/**
+ * The feeds a page declares, read once: sites keep announcing feeds they no longer serve (WordPress with its feeds
+ * turned off answers them empty). One that answers with something other than a feed is dropped, so the page's own
+ * list is used instead; one that could not be read at all stays, as before.
+ */
+async function checkDeclared(app: App, list: FeedPreview["candidates"]): Promise<FeedPreview["candidates"]> {
+  const checked = await Promise.all(
+    list.slice(0, 12).map(async (c) => {
+      try {
+        const r = await httpGet(c.url, { userAgent: app.cfg.feedUserAgent, timeoutMs: 10_000, maxBytes: 5_000_000 });
+        // gone or refused for good (WordPress answers its locked JSON interface 401); a bot check (403, 429) may hide a feed
+        if (!r.ok) return [401, 404, 410].includes(r.status) ? null : c;
+        return FEEDLIKE.test(decodeBody(r.body, r.contentType).slice(0, 2000)) ? c : null;
+      } catch {
+        return c;
+      }
+    }),
+  );
+  return [...checked.filter((c) => c !== null), ...list.slice(12)];
 }
 
 const dedupe = (list: FeedPreview["candidates"]) => list.filter((c, i) => list.findIndex((d) => d.url === c.url) === i);

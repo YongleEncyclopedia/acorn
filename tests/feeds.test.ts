@@ -76,3 +76,30 @@ describe("lists where each entry is one link", () => {
     expect(new Date(items[0].publishedAt!).toLocaleDateString("en-CA")).toBe("2025-09-10");
   });
 });
+
+describe("lists whose first link is not the title", () => {
+  it("takes the title from a linked heading when the first link is a picture", () => {
+    const html = `<html><body><div class="posts">${Array.from({ length: 4 }, (_, i) =>
+      `<article class="post"><a href="/p/${i}"><img src="/i/${i}.jpg"></a><h4 class="entry-title"><a href="/p/${i}">第${i + 1}个招生通知的标题</a></h4><p class="post-meta">2026/11/${10 + i}</p></article>`).join("")}</div></body></html>`;
+    const rule = suggestRule(html, "https://gc.example.edu/news/")!;
+    expect(rule).toMatchObject({ item: "div.posts > article.post", title: "h4.entry-title a" });
+    const items = scrapeList(html, "https://gc.example.edu/news/", rule);
+    expect(items.map((i) => [i.title, i.url])[0]).toEqual(["第1个招生通知的标题", "https://gc.example.edu/p/0"]);
+    expect(new Date(items[0].publishedAt!).toLocaleDateString("en-CA")).toBe("2026-11-10");
+  });
+
+  it("takes the title from a plain heading when the link reads 了解更多", () => {
+    const html = `<html><body><div class="intern-list">${Array.from({ length: 4 }, (_, i) =>
+      `<div class="part"><div class="part_title"><h2 class="fs30">第${i + 1}个实习生招募方向</h2></div><div class="part_content"><a class="more" href="../info/${i}.htm">了解更多</a></div></div>`).join("")}</div></body></html>`;
+    const rule = suggestRule(html, "https://lab.example.edu/join/interns.htm")!;
+    expect(rule).toMatchObject({ item: "div.intern-list > div.part", title: "h2.fs30" });
+    expect(scrapeList(html, "https://lab.example.edu/join/interns.htm", rule).map((i) => [i.title, i.url])[3]).toEqual(["第4个实习生招募方向", "https://lab.example.edu/info/3.htm"]);
+  });
+});
+
+describe("declared feeds", () => {
+  it("leaves out language versions and oEmbed links", () => {
+    const html = '<html><head><link rel="alternate" hreflang="en" href="/en/"><link rel="alternate" type="application/json+oembed" href="/oembed"><link rel="alternate" type="application/rss+xml" href="/feed/"></head></html>';
+    expect(discoverFeeds(html, "https://gc.example.edu/news/").map((c) => c.url)).toEqual(["https://gc.example.edu/feed/"]);
+  });
+});
