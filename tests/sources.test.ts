@@ -109,6 +109,14 @@ describe("subscribing to the stand-in site", () => {
       if (req.url === "/rss.html") return send(200, "application/xml", FEED);
       if (req.url === "/api/list") return send(200, "application/json", JSON.stringify({ data: { list: [{ id: 1, title: "接口里的第一条", url: "/a/1" }, { id: 2, title: "接口里的第二条", url: "/a/2" }] } }));
       if (req.url === "/guarded") return send(202, "text/html", "", { "x-amzn-waf-action": "challenge" });
+      // a WordPress blog with its feeds turned off: it still announces them (one answers empty, the JSON interface 401)
+      if (req.url === "/news/") return send(200, "text/html", `<html><head><title>学院新闻</title>
+        <link rel="alternate" hreflang="en" href="/en/news/"><link rel="alternate" type="application/rss+xml" title="站点 Feed" href="/feed/">
+        <link rel="alternate" title="JSON" type="application/json" href="/wp-json/wp/v2/pages/7">
+        <link rel="alternate" type="application/json+oembed" href="/wp-json/oembed/1.0/embed"></head><body><div class="posts">${Array.from({ length: 5 }, (_, i) =>
+          `<article class="post"><a href="/news/${i}/" class="thumb"><img src="/i/${i}.jpg" alt=""></a><h4 class="entry-title"><a href="/news/${i}/">学院第${i + 1}条新闻的标题</a></h4><p class="post-meta"><span>2026/11/${20 + i}</span></p></article>`).join("")}</div></body></html>`);
+      if (req.url === "/feed/") return send(200, "application/rss+xml", "");
+      if (req.url?.startsWith("/wp-json/")) return send(401, "application/json", '{"code":"rest_not_logged_in"}');
       if (req.url === "/board") return send(200, "text/html", `<html><head><title>公告栏</title></head><body><div id="b"><ul>${notice}</ul></div><footer>访问量 ${Math.random()}</footer></body></html>`);
       send(404, "text/plain", "not found");
     });
@@ -141,6 +149,12 @@ describe("subscribing to the stand-in site", () => {
   it("finds a feed the page only links to, even at an .html address", async () => {
     const r = await call("/api/feeds/preview", "POST", { input: `${base}/` });
     expect(r.json).toMatchObject({ kind: "feed", candidates: [{ url: `${base}/rss.html`, title: "站点新闻" }] });
+  });
+
+  it("passes over feeds a page announces but does not serve, and reads its list", async () => {
+    const r = await call("/api/feeds/preview", "POST", { input: `${base}/news/` });
+    expect(r.json).toMatchObject({ kind: "html", candidates: [], suggestedRule: { title: "h4.entry-title a", date: "p.post-meta" } });
+    expect(r.json.items.map((i: { title: string; url: string }) => [i.title, i.url]).slice(0, 2)).toEqual([["学院第1条新闻的标题", `${base}/news/0/`], ["学院第2条新闻的标题", `${base}/news/1/`]]);
   });
 
   it("reads a JSON interface pasted as an address", async () => {

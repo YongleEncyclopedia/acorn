@@ -17,7 +17,9 @@ export function discoverFeeds(html: string, pageUrl: string): Candidate[] {
   const seen = new Set<string>();
   for (const link of document.querySelectorAll('link[rel~="alternate"], link[rel="feed"]')) {
     const type = link.getAttribute("type") || "";
-    if (type && !FEED_TYPES.test(type)) continue;
+    if ((type && !FEED_TYPES.test(type)) || /oembed/i.test(type)) continue;
+    // <link rel="alternate" hreflang="en"> is the page in another language, not a feed
+    if (!type && link.hasAttribute("hreflang")) continue;
     const href = absolutize(link.getAttribute("href"), pageUrl);
     if (!href || seen.has(href)) continue;
     if (/comments?\/feed|\/comments\//i.test(href)) continue;
