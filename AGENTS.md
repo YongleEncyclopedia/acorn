@@ -132,6 +132,9 @@ tests/                 vitest; fixtures are real pages saved from the web
   A new AI service is a preset in `src/shared/ai.ts`, plus a wire in `translate/wire.ts` when it steers reasoning
   its own way (`tests/ai.test.ts` lists what each service is sent). A saved API key only goes to the address it was
   saved for (`keyTarget`).
+- **UI feedback from the owner** → they annotate the running page with `tools/ui-notes` (see its README); read
+  `tools/ui-notes/notes.json` (page, selector, text, styles, viewport, note), fix each, then set its `status` to
+  `done` with a short `reply`.
 - **Settings page** → sections are listed in `SECTIONS` (web/src/views/SettingsPage.tsx). What most people never touch
   (RSSHub address, AI assistants / API tokens) sits folded under 高级; accounts are connected where a subscription
   needs one (添加订阅), and 设置 → 账号 only lists those already connected.
