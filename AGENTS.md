@@ -43,8 +43,11 @@ src/server/
   api/                 http.ts (Hono app, auth gate, static), routes/*.ts, greader.ts (Google Reader API),
                        outputs.ts (re-publish as RSS), auth.ts, content.ts (image proxy URL rewriting)
   translate/           engine.ts (Ollama / OpenAI-compatible / Anthropic, numbered-segment prompt), index.ts (job queue + cache),
-                       summary.ts (key points, cached in the same table under `summary:<lang>`)
-  calendar/            班级日历: ics.ts (read / write iCalendar), canvas.ts (exams read out of the owner's Canvas
+                       summary.ts (key points, cached in the same table under `summary:<lang>`),
+                       models.ts (a service's models and each one's context / reasoning controls / price, asked before saving),
+                       catalog.ts (models.dev, fills in what services leave out; cached daily in data/cache),
+                       wire.ts (one reasoning choice → each service's own fields)
+  calendar/            班级日历 (no UI for now; the server, its API and the .ics link stay): ics.ts (read / write iCalendar), canvas.ts (exams read out of the owner's Canvas
                        announcements by the AI model, checked against the text and cached; planner due dates),
                        merge.ts (everyone's items as counts, never names; course items only), feishu.ts (calendar v4
                        sync, remembered in calendar_sync), store.ts, index.ts (refresh, .ics, sync every 3 hours)
@@ -64,6 +67,7 @@ src/server/
   util/zip.ts          dependency-free streaming ZIP writer (deflate, data descriptors, ZIP64)
   notify/telegram.ts
 src/shared/types.ts    API types shared by server and web — change both sides together
+src/shared/ai.ts       AI service presets, the reasoning plan ("auto" = off where the model allows it), context windows
 src/shared/translate.ts which article blocks get translated, language detection (runs on linkedom and in the browser)
 src/shared/article.ts  what the reader works out before setting an article: Latin-script paragraphs, the outline
 src/shared/offline.ts  the offline pack: which pictures an article needs, the changes a device keeps while offline
@@ -125,6 +129,15 @@ tests/                 vitest; fixtures are real pages saved from the web
 - **Translation** → the reader sends block texts to `POST /api/translate`; translations are cached per text hash in the
   `translations` table and inserted under each block by `web/src/lib/translate.ts` (marked `data-acorn-tr`, which
   highlights and block detection skip). Engines live in `src/server/translate/engine.ts`; tests use fake servers.
+  A new AI service is a preset in `src/shared/ai.ts`, plus a wire in `translate/wire.ts` when it steers reasoning
+  its own way (`tests/ai.test.ts` lists what each service is sent). A saved API key only goes to the address it was
+  saved for (`keyTarget`).
+- **UI feedback from the owner** → they annotate the running page with `tools/ui-notes` (see its README); read
+  `tools/ui-notes/notes.json` (page, selector, text, styles, viewport, note), fix each, then set its `status` to
+  `done` with a short `reply`.
+- **Settings page** → sections are listed in `SECTIONS` (web/src/views/SettingsPage.tsx). What most people never touch
+  (RSSHub address, AI assistants / API tokens) sits folded under 高级; accounts are connected where a subscription
+  needs one (添加订阅), and 设置 → 账号 only lists those already connected.
 - **UI change** → `web/src`; keep colors as CSS variables in `styles/tokens.css` (5 themes must stay readable:
   `--ink-3` is text and keeps 4.5:1 against the backgrounds, `--ink-4` is decoration only);
   check desktop (three panes) and mobile (≤ 760px, tab bar) layouts.
@@ -163,7 +176,7 @@ feed / folder / view, optionally `before` a time, `upTo` an entry or `newerThan`
 archives (list/detail/POST capture/import/:id/snapshot/:id/recheck/:id/wayback/PATCH/DELETE),
 imports (list/POST file/preview/:id/items/:id/retry/PATCH/DELETE — moving in from other tools), export (ZIP, ?full=1),
 backup (status/POST run), highlights, search, settings,
-tokens, stats, logs, opml, digest, events (SSE), img (image proxy), translate (+/:id, /models, /test), summary, wechat-bridge (+/sync), offline/assets (the app files for the offline pack), accounts (list/POST token or cookie/browser sign-in
+tokens, stats, logs, opml, digest, events (SSE), img (image proxy), translate (+/:id, /models GET saved or POST a draft, /test with an optional draft), summary, wechat-bridge (+/sync), offline/assets (the app files for the offline pack), accounts (list/POST token or cookie/browser sign-in
 +/browser/:spaceId/:id/check/DELETE — never returns a credential), plugins/:id/choices,
 class-calendar (GET/PATCH, +/members POST/DELETE, /own-canvas, /sync, /link — classmates' links and the Feishu secret
 never come back out), addresses, login-link`. Class calendar: `/out/class-calendar.ics?key=` (a key of its own, not an API token). Text responses are gzipped for clients that accept it. One-time sign-in: `GET /login/<token>` (public; the token comes from `POST /api/login-link`). Archive files: `/files/archive/<path>`.

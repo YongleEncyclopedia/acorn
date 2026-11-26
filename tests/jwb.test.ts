@@ -92,6 +92,8 @@ describe("signing in to 交我办 and reading its messages", () => {
   // what the stand-ins accept; tests change them to end sessions
   let session = "s1";
   let jaAuth = "ja-valid";
+  // answers the portal leaves empty (200 with no body), as it now and then does
+  let blanks = 0;
   const asked: string[] = [];
 
   const recent = (days: number) => {
@@ -123,6 +125,11 @@ describe("signing in to 交我办 and reading its messages", () => {
       }
       if (!signedIn) {
         res.writeHead(401);
+        return res.end();
+      }
+      if (url.pathname.startsWith("/api/jwbmessage/") && blanks > 0) {
+        blanks--;
+        res.writeHead(200, { "content-type": "application/json" });
         return res.end();
       }
       if (url.pathname === "/api/account") return json({ entities: [{ name: "小松", account: "xiaosong" }] });
@@ -210,6 +217,17 @@ describe("signing in to 交我办 and reading its messages", () => {
     expect(asked.filter((a) => a.startsWith("/api/jwbmessage/messagelist"))).toEqual(["/api/jwbmessage/messagelist#G1", "/api/jwbmessage/messagelist#G2"]);
     const one = await subscribe("G3");
     expect(one).toMatchObject({ added: 1, feed: { title: "交我办 · 体育系" } });
+  });
+
+  it("asks again when the portal answers with nothing, and says so plainly when it keeps doing it", async () => {
+    const feed = app.feeds.list().find((f) => f.title === "交我办")!;
+    blanks = 1;
+    expect((await refreshFeed(app, feed.id)).error).toBeUndefined();
+    blanks = 2;
+    expect((await refreshFeed(app, feed.id)).error).toBe("交我办这次没有正常回答（返回了空内容），下次更新会再试");
+    blanks = 0;
+    // a hiccup is not a sign-in problem
+    expect(app.accounts.list().find((a) => a.service === "jwb")!.status).toBe("ok");
   });
 
   it("renews an ended portal session through jAccount, and keeps the new one", async () => {

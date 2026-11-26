@@ -8,3 +8,4 @@ coverage/
 tmp/
 desktop/build/
 desktop/release/
+tools/ui-notes/notes.json

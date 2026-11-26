@@ -49,14 +49,24 @@ try {
   await page.goto(URL_, { timeout: 45000 });
   await page.waitForLoadState("load", { timeout: 20000 }).catch(() => {});
   await page.waitForTimeout(${mode === "rendered" ? 2500 : 800});
+  // A bot check (AWS WAF, Cloudflare) answers first with a challenge its script solves in a second or two, then
+  // reloads: until then the page, and a fetch from it, get the challenge. Wait for it rather than read it.
+  const header = (h, k) => (h && (h[k] || h[k.toLowerCase()])) || "";
+  const challenged = (r) => !r.body || r.status === 202 || /challenge|captcha/i.test(header(r.headers, "x-amzn-waf-action")) || /challenge/i.test(header(r.headers, "cf-mitigated"));
+  const challengePage = () => page.evaluate(() => /awsWafCookieDomainList|AwsWafIntegration|challenge-platform|cf-chl|Just a moment/i.test(document.documentElement.outerHTML.slice(0, 20000)));
   if (${JSON.stringify(mode)} === "rendered") {
+    for (let i = 0; i < 5 && (await challengePage()); i++) await page.waitForTimeout(2000);
     await fs.writeFile(OUT + "/body", await page.evaluate(() => "<!doctype html>\\n" + document.documentElement.outerHTML));
-    result = { ok: true, status: 200, url: await page.url(), contentType: "text/html" };
+    result = { ok: true, status: 200, url: await page.url(), contentType: "text/html", challenged: await challengePage() };
   } else {
-    const r = await page.fetch(URL_, { timeout: 30000 });
+    let r = await page.fetch(URL_, { timeout: 30000 });
+    for (let i = 0; i < 4 && challenged(r); i++) {
+      await page.waitForTimeout(2000 + i * 1000);
+      if (i === 1) await page.reload({ timeout: 30000 }).catch(() => {});
+      r = await page.fetch(URL_, { timeout: 30000 });
+    }
     await fs.writeFile(OUT + "/body", r.body || "");
-    const h = r.headers || {};
-    result = { ok: true, status: r.status, url: r.url || URL_, contentType: h["content-type"] || h["Content-Type"] || "" };
+    result = { ok: true, status: r.status, url: r.url || URL_, contentType: header(r.headers, "Content-Type"), challenged: challenged(r) };
   }
 } catch (e) {
   result = { ok: false, error: String((e && e.message) || e) };
@@ -66,11 +76,13 @@ try {
 console.log("ACORN_RESULT " + JSON.stringify(result));
 `;
     try {
-      const { res } = await runEgo<{ ok: boolean; status?: number; url?: string; contentType?: string; error?: string }>(app, script, out, timeoutMs);
+      const { res } = await runEgo<{ ok: boolean; status?: number; url?: string; contentType?: string; error?: string; challenged?: boolean }>(app, script, out, timeoutMs);
       if (!res.ok) throw new Error(`浏览器没能打开 ${url}：${res.error}`);
       const file = path.join(out, "body");
       const text = existsSync(file) ? readFileSync(file, "utf8") : "";
       if ((res.status ?? 200) >= 400) throw new Error(`浏览器打开 ${url} 得到 HTTP ${res.status}`);
+      // still the challenge after waiting: say so, rather than fail to read it as a feed or a list
+      if (res.challenged) throw new Error(`${new URL(url).host} 的防护这次没放浏览器过去（等了十几秒），下次更新会再试`);
       return { status: res.status ?? 200, url: res.url || url, contentType: res.contentType || "", text };
     } finally {
       rmSync(out, { recursive: true, force: true });

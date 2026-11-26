@@ -15,7 +15,7 @@ import { createHttp } from "../src/server/api/http.ts";
 import { blockText, isForeign, needsTranslation, translatableBlocks, TR_ATTR } from "../src/shared/translate.ts";
 import { buildPrompt, parseReply } from "../src/server/translate/engine.ts";
 import { parsePoints, summarize } from "../src/server/translate/summary.ts";
-import type { TranslationJob } from "../src/shared/types.ts";
+import type { ModelList, ModelTest, TranslationJob } from "../src/shared/types.ts";
 
 process.env.ACORN_SILENT = "1";
 
@@ -67,6 +67,22 @@ describe("model replies", () => {
   });
 });
 
+// A slice of models.dev's catalog, in its own format.
+const CATALOG = {
+  deepseek: {
+    api: "https://api.deepseek.com",
+    models: {
+      "deepseek-flash": { id: "deepseek-flash", name: "DeepSeek V4.1 Flash", reasoning: true, reasoning_options: [{ type: "toggle" }, { type: "effort", values: ["low", "high", "max"] }], temperature: true, limit: { context: 1048576, output: 393216 }, cost: { input: 0.15, output: 0.6 }, release_date: "2026-10-17" },
+    },
+  },
+  "moonshotai-cn": {
+    api: "https://api.moonshot.cn/v1",
+    models: {
+      "kimi-k3": { id: "kimi-k3", name: "Kimi K3", reasoning: true, reasoning_options: [{ type: "effort", values: ["low", "high", "max"] }], temperature: false, limit: { context: 1048576, output: 1048576 }, cost: { input: 2.99, output: 14.94 }, release_date: "2026-08-01" },
+    },
+  },
+};
+
 describe("translation flow", () => {
   let server: http.Server;
   let base = "";
@@ -92,19 +108,27 @@ describe("translation flow", () => {
       const user = body.messages?.find((m: { role: string }) => m.role === "user")?.content || "";
       const system = body.messages?.find((m: { role: string }) => m.role === "system")?.content || body.system || "";
       if (req.url === "/api/chat" && /key points/.test(system)) return json(200, { message: { role: "assistant", content: "<think></think>\n- 松鼠埋下的橡果比吃掉的多\n- 2. 被忘掉的橡果长成了森林\n* **存档**：原文没了，副本还在" } });
-      if (req.url === "/api/tags") return json(200, { models: [{ name: "qwen3:14b" }] });
+      if (req.url === "/api/tags") return json(200, { models: [{ name: "qwen3:14b", size: 9_300_000_000, details: { parameter_size: "14.8B", quantization_level: "Q4_K_M" } }] });
+      if (req.url === "/api/show") return json(200, { model_info: { "general.architecture": "qwen3", "qwen3.context_length": 40960 }, capabilities: ["completion", "thinking"], thinking: { values: [true, false], default: true } });
+      if (req.url === "/catalog.json") return json(200, CATALOG);
       if (req.url === "/api/chat") {
         if (body.model !== "qwen3:14b") return json(404, { error: `model "${body.model}" not found, try pulling it first` });
         return json(200, { message: { role: "assistant", content: fakeTranslate(user) } });
       }
       if (req.url === "/v1/chat/completions") return json(200, { choices: [{ message: { content: fakeTranslate(user) } }] });
+      // a DeepSeek-like service (its list holds an embedding model too), a Kimi that always reasons, a model without temperature
+      if (req.url === "/v1/models" || req.url === "/other/models") return json(200, { object: "list", data: [{ id: "some-model", object: "model" }] });
+      if (req.url === "/ds/models") return json(200, { object: "list", data: [{ id: "deepseek-flash", object: "model", owned_by: "deepseek" }, { id: "deepseek-embed-v2", object: "model", owned_by: "deepseek" }] });
+      if (req.url === "/kimi/chat/completions") return json(200, { choices: [{ message: { content: fakeTranslate(user), reasoning_content: "先想一想" }, finish_reason: "stop" }], usage: { completion_tokens_details: { reasoning_tokens: 12 } } });
+      if (req.url === "/notemp/chat/completions" && "temperature" in body) return json(400, { error: { message: "Unsupported parameter: 'temperature' is not supported with this model.", type: "invalid_request_error" } });
+      if (req.url === "/ds/chat/completions" || req.url === "/notemp/chat/completions") return json(200, { choices: [{ message: { content: fakeTranslate(user) }, finish_reason: "stop" }] });
       if (req.url === "/v1/messages") return json(200, { content: [{ type: "text", text: fakeTranslate(user) }] });
       json(404, { error: "not found" });
     });
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     dataDir = mkdtempSync(path.join(os.tmpdir(), "acorn-translate-"));
-    app = createApp(loadConfig({ ACORN_DATA_DIR: dataDir, ACORN_EGO_BROWSER: "definitely-not-installed" }, { scheduler: false }));
+    app = createApp(loadConfig({ ACORN_DATA_DIR: dataDir, ACORN_EGO_BROWSER: "definitely-not-installed", ACORN_MODELS_CATALOG: `${base}/catalog.json` }, { scheduler: false }));
     token = ensureCliToken(app);
     web = createHttp(app);
   });
@@ -137,7 +161,8 @@ describe("translation flow", () => {
     const chat = calls.filter((c) => c.path === "/api/chat");
     expect(chat).toHaveLength(1);
     expect(chat[0].body.think).toBe(false);
-    expect((await api("/api/translate/models")).models).toEqual(["qwen3:14b"]);
+    const listed = await api("/api/translate/models");
+    expect(listed.models).toEqual([{ id: "qwen3:14b", context: 40960, reasoning: { toggle: true, efforts: [], budget: null }, detail: "14.8B · Q4_K_M · 9.3 GB", source: "service" }]);
   });
 
   it("serves repeated texts from the cache, and translates again when asked", async () => {
@@ -147,6 +172,13 @@ describe("translation flow", () => {
     expect(calls.length).toBe(before);
     await translate(["Hello world"], true);
     expect(calls.length).toBe(before + 1);
+  });
+
+  it("says how much of an article is translated already, without asking the model", async () => {
+    const before = calls.length;
+    const known = await api<{ total: number; cached: number }>("/api/translate/known", { method: "POST", body: JSON.stringify({ texts: ["Hello world", "Never translated", "Hello world", ""] }) });
+    expect(known).toEqual({ total: 2, cached: 1 });
+    expect(calls.length).toBe(before);
   });
 
   it("explains a missing local model", async () => {
@@ -190,5 +222,64 @@ describe("translation flow", () => {
     expect(r.text).toMatch(/^译:The squirrel/);
     expect(calls.at(-1)!.path).toBe("/v1/messages");
     expect(calls.at(-1)!.auth).toBe("sk-ant-5678");
+  });
+
+  const DEEPSEEK = { provider: "openai", preset: "deepseek", apiKey: "sk-draft" };
+  const lastCall = (p: string) => calls.filter((c) => c.path === p).at(-1)!;
+  const post = <T,>(p: string, body: unknown) => api<T>(p, { method: "POST", body: JSON.stringify(body) });
+
+  it("lists a service's models before anything is saved, filled in from models.dev", async () => {
+    const saved = (await api("/api/settings")).translate;
+    const list = await post<ModelList>("/api/translate/models", { ...DEEPSEEK, baseUrl: `${base}/ds` });
+    expect(list.source).toBe("service");
+    // the embedding model is left out; the catalog adds the window, the reasoning controls and the price
+    expect(list.models).toEqual([{ id: "deepseek-flash", name: "DeepSeek V4.1 Flash", context: 1_048_576, maxOutput: 393_216, reasoning: { toggle: true, efforts: ["low", "high", "max"], budget: null }, temperature: true, price: { input: 0.15, output: 0.6 }, source: "catalog" }]);
+    expect(lastCall("/ds/models").auth).toBe("Bearer sk-draft");
+    expect((await api("/api/settings")).translate).toEqual(saved);
+  });
+
+  it("tests a draft before it is saved, with reasoning switched off where the model allows it", async () => {
+    const draft = { ...DEEPSEEK, baseUrl: `${base}/ds`, model: "deepseek-flash", reasoning: "auto" };
+    const r = await post<ModelTest>("/api/translate/test", draft);
+    expect(r).toMatchObject({ ok: true, model: "deepseek-flash", reasoned: false, sent: { thinking: { type: "disabled" } }, info: { context: 1_048_576 } });
+    expect(r.text).toMatch(/^译:The squirrel/);
+    expect(lastCall("/ds/chat/completions")).toMatchObject({ auth: "Bearer sk-draft", body: { model: "deepseek-flash", temperature: 0.2, thinking: { type: "disabled" } } });
+    // the deepest level, and a parameter of the service's own
+    const deep = await post<ModelTest>("/api/translate/test", { ...draft, reasoning: "max", extraBody: '{"top_p": 0.9}' });
+    expect(deep.sent).toEqual({ thinking: { type: "enabled" }, reasoning_effort: "max" });
+    expect(lastCall("/ds/chat/completions").body).toMatchObject({ thinking: { type: "enabled" }, reasoning_effort: "max", top_p: 0.9 });
+    expect(await post<ModelTest>("/api/translate/test", { ...draft, extraBody: "[1, 2]" })).toMatchObject({ ok: false, error: expect.stringMatching(/附加请求参数/) });
+  });
+
+  it("keeps a model that always reasons at its lowest level, without the temperature it rejects", async () => {
+    const r = await post<ModelTest>("/api/translate/test", { provider: "openai", preset: "moonshot", baseUrl: `${base}/kimi`, apiKey: "sk-kimi", model: "kimi-k3" });
+    expect(r).toMatchObject({ ok: true, reasoned: true, reasoningTokens: 12, sent: { reasoning_effort: "low" } });
+    const body = lastCall("/kimi/chat/completions").body;
+    expect(body.reasoning_effort).toBe("low");
+    expect(body).not.toHaveProperty("thinking");
+    expect(body).not.toHaveProperty("temperature");
+  });
+
+  it("asks again without a temperature when a model rejects one, and remembers that", async () => {
+    const draft = { provider: "openai", preset: "custom", baseUrl: `${base}/notemp`, model: "reasoner-x" };
+    expect((await post<ModelTest>("/api/translate/test", draft)).ok).toBe(true);
+    const tries = () => calls.filter((c) => c.path === "/notemp/chat/completions").map((c) => "temperature" in c.body);
+    expect(tries()).toEqual([true, false]);
+    await post("/api/translate/test", draft);
+    expect(tries()).toEqual([true, false, false]);
+  });
+
+  it("sends a saved key only to the address it was saved for", async () => {
+    await configure({ provider: "openai", preset: "custom", baseUrl: `${base}/v1`, model: "some-model", apiKey: "sk-saved-9999" });
+    const saved = (await api("/api/settings")).translate;
+    expect(saved.apiKey).toBe("••••9999");
+    const list = (baseUrl: string) => post<ModelList>("/api/translate/models", { provider: "openai", preset: "custom", baseUrl, apiKey: saved.apiKey });
+    expect((await list(`${base}/v1`)).models.map((m) => m.id)).toEqual(["some-model"]);
+    expect(lastCall("/v1/models").auth).toBe("Bearer sk-saved-9999");
+    await list(`${base}/other`);
+    expect(lastCall("/other/models").auth).toBeUndefined();
+    // saving the form with the masked key under a new address does not carry the key there either
+    await configure({ ...saved, baseUrl: `${base}/other` });
+    expect((await api("/api/settings")).translate.apiKey).toBe("");
   });
 });

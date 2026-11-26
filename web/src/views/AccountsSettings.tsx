@@ -1,10 +1,9 @@
 /**
- * 设置 → 账号: the platforms Acorn reads with the user's own sign-in (知识星球, Canvas…). Subscribing happens in
- * 添加订阅 → 插件; here the sign-ins are connected, checked, renewed when a platform stops accepting them, and removed.
+ * 设置 → 账号: the sign-ins already connected (知识星球, Canvas…), checked, renewed when a platform stops accepting
+ * them, and removed. They are connected where they are needed, in 添加订阅 → 插件: the platforms are not listed here.
  */
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
 import { api } from "../lib/api.ts";
 import { relTime } from "../lib/format.ts";
 import { toast, toastError } from "../lib/store.ts";
@@ -67,12 +66,14 @@ export function AccountsSettings() {
     <section className="settings-section" id="accounts">
       <h2>账号</h2>
       <div className="settings-card">
-        <div className="setting-row stack">
-          <div className="txt">
-            <b>要登录才能看的来源</b>
-            <span>知识星球、交大 Canvas、交我办这类地方，在这里登录一次，再到「添加订阅 → 插件」里订阅。登录信息只存在运行松果的电脑上，不会出现在导出、日志和接口里；不保存密码。登录过期时，订阅源会提示你回到这里重新登录。</span>
+        {!accounts.length && (
+          <div className="setting-row">
+            <div className="txt">
+              <b>还没有连接账号</b>
+              <span>订阅要登录才能看的内容时，在「添加订阅」里连接。登录信息只存在这台电脑上。</span>
+            </div>
           </div>
-        </div>
+        )}
         {accounts.map((a) => (
           <div key={a.id}>
             <div className="setting-row">
@@ -105,21 +106,6 @@ export function AccountsSettings() {
             {open && open.service === a.service && open.origin === a.origin && form(a.service, a.origin)}
           </div>
         ))}
-        <div className="setting-row">
-          <div className="txt">
-            <b>连接账号</b>
-            <span>知识星球扫码登录网页版；Canvas 用你在 Canvas 里创建的访问令牌；交我办用 jAccount 登录。</span>
-          </div>
-          <div className="row-controls">
-            {services.map((s) => (
-              <button key={s.id} type="button" className={`btn sm ${open?.service === s.id && !open.origin ? "primary" : ""}`} onClick={() => setOpen(open?.service === s.id && !open.origin ? null : { service: s.id })}>
-                <Plus size={14} />
-                {s.name}
-              </button>
-            ))}
-          </div>
-        </div>
-        {open && !open.origin && form(open.service)}
       </div>
     </section>
   );

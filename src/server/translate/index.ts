@@ -6,9 +6,11 @@
 import type { App } from "../app.ts";
 import type { TranslationJob } from "../../shared/types.ts";
 import { sourceKey } from "../../shared/translate.ts";
+import { contextFor } from "../../shared/ai.ts";
 import { sha1 } from "../util/text.ts";
 import { logger } from "../util/log.ts";
 import { translateBatch } from "./engine.ts";
+import { modelInfo } from "./models.ts";
 
 const log = logger("translate");
 const MAX_TEXTS = 1500;
@@ -38,6 +40,16 @@ const snapshot = (j: Job): TranslationJob => ({
   error: j.error,
   model: j.model,
 });
+
+/**
+ * How many of an article's texts are translated already, without starting anything: the reader shows an article
+ * translated again when it was translated before (the translations are kept, the switch is not).
+ */
+export function knownTranslations(app: App, rawTexts: string[], lang?: string): { total: number; cached: number } {
+  const l = lang || app.settings.all().translate.targetLang;
+  const hashes = [...new Set(rawTexts.slice(0, MAX_TEXTS).map((t) => sourceKey(String(t)).slice(0, MAX_TEXT)).filter(Boolean).map((t) => sha1(t)))];
+  return { total: hashes.length, cached: hashes.length ? app.translations.get(hashes, l).size : 0 };
+}
 
 /** Start (or resume) translating `texts`; returns what is known so far. `fresh` drops cached translations first. */
 export function requestTranslation(app: App, rawTexts: string[], opts: { lang?: string; fresh?: boolean } = {}): TranslationJob {
@@ -96,10 +108,13 @@ function kick(app: App): void {
 /** Translate the next chunk of a job. */
 async function step(app: App, job: Job): Promise<void> {
   const cfg = app.settings.all().translate;
+  const info = await modelInfo(app, cfg);
   const local = cfg.provider === "ollama";
-  // A small first chunk puts the title and opening paragraphs on screen within seconds.
+  // A small first chunk puts the title and opening paragraphs on screen within seconds. A chunk and its
+  // translation must fit the context window together (a character can be a token, in Chinese).
   const first = job.items.every((t) => !t);
-  const maxChars = first ? 400 : local ? 1600 : 5000;
+  const room = Math.max(400, Math.floor((contextFor(cfg, info).tokens - 1500) / 2));
+  const maxChars = Math.min(first ? 400 : local ? 1600 : 5000, room);
   const maxCount = local ? 16 : 40;
   // Same text twice in one article is translated once.
   const chunk: string[] = [];
@@ -114,7 +129,7 @@ async function step(app: App, job: Job): Promise<void> {
   }
   const started = Date.now();
   try {
-    const out = await translateBatch(cfg, chunk, job.lang);
+    const out = await translateBatch(cfg, chunk, job.lang, info);
     chunkHashes.forEach((h, k) => {
       app.translations.put(h, job.lang, out[k], cfg.model);
       job.hashes.forEach((hh, i) => {

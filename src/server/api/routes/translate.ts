@@ -1,44 +1,71 @@
 import type { Hono } from "hono";
 import { z } from "zod";
 import type { App } from "../../app.ts";
-import { getTranslation, requestTranslation } from "../../translate/index.ts";
-import { DEFAULT_BASE, TranslateError, translateBatch } from "../../translate/engine.ts";
+import type { ModelTest, TranslateSettings } from "../../../shared/types.ts";
+import { isMaskedKey, keyTarget, REASONING_CHOICES } from "../../../shared/ai.ts";
+import { getTranslation, knownTranslations, requestTranslation } from "../../translate/index.ts";
+import { parseReply, TranslateError, trySentence } from "../../translate/engine.ts";
+import { listModels, modelInfo } from "../../translate/models.ts";
 import { summarize } from "../../translate/summary.ts";
+import { normalizeTranslate } from "../../store/settings.ts";
 import { snapshotText } from "../../archive/capture.ts";
 import { htmlToText } from "../../util/text.ts";
 
 const REQUEST = z.object({ texts: z.array(z.string()).max(1500), lang: z.string().max(20).optional(), fresh: z.boolean().optional() });
 
+/** The settings page's unsaved edits of the AI service. */
+const DRAFT = z.object({
+  provider: z.enum(["ollama", "openai", "anthropic"]),
+  preset: z.string().max(40).optional(),
+  baseUrl: z.string().max(500).optional(),
+  apiKey: z.string().max(1000).optional(),
+  model: z.string().max(300).optional(),
+  reasoning: z.enum(REASONING_CHOICES as [string, ...string[]]).optional(),
+  contextLength: z.number().int().min(0).max(100_000_000).optional(),
+  extraBody: z.string().max(20_000).optional(),
+});
+
+/**
+ * The saved settings with the draft on top. A masked (or missing) key stands for the saved key, but only for the
+ * service and address it was saved for: a key is never sent anywhere it was not entered for.
+ */
+function draftSettings(app: App, body: unknown): TranslateSettings {
+  const saved = app.settings.all().translate;
+  const d = DRAFT.parse(body);
+  const merged = normalizeTranslate({ ...saved, ...d, preset: d.preset ?? "" } as TranslateSettings);
+  if (d.apiKey === undefined || isMaskedKey(d.apiKey)) merged.apiKey = keyTarget(merged) === keyTarget(saved) ? saved.apiKey : "";
+  return merged;
+}
+
 export function registerTranslate(r: Hono, app: App): void {
+  // what is translated already, asking no model (a reader reopening an article)
+  r.post("/api/translate/known", async (c) => {
+    const body = REQUEST.parse(await c.req.json());
+    return c.json(knownTranslations(app, body.texts, body.lang));
+  });
   r.post("/api/translate", async (c) => {
     const body = REQUEST.parse(await c.req.json());
     return c.json(requestTranslation(app, body.texts, { lang: body.lang, fresh: body.fresh }));
   });
 
-  r.get("/api/translate/models", async (c) => {
-    const cfg = app.settings.all().translate;
-    const base = (cfg.baseUrl || DEFAULT_BASE[cfg.provider]).replace(/\/+$/, "");
-    try {
-      if (cfg.provider === "ollama") {
-        const d = (await (await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(5000) })).json()) as { models?: { name: string }[] };
-        return c.json({ models: (d.models || []).map((m) => m.name) });
-      }
-      const headers: Record<string, string> = cfg.provider === "anthropic" ? { "x-api-key": cfg.apiKey, "anthropic-version": "2023-06-01" } : { authorization: `Bearer ${cfg.apiKey}` };
-      const d = (await (await fetch(`${base}/models`, { headers, signal: AbortSignal.timeout(8000) })).json()) as { data?: { id: string }[] };
-      return c.json({ models: (d.data || []).map((m) => m.id).sort() });
-    } catch {
-      return c.json({ models: [] });
-    }
-  });
+  // The models of the saved service, or (POST) of the one the settings page is filling in, before it is saved.
+  r.get("/api/translate/models", async (c) => c.json(await listModels(app, app.settings.all().translate)));
+  r.post("/api/translate/models", async (c) => c.json(await listModels(app, draftSettings(app, await c.req.json()))));
 
+  // One sentence through the saved configuration, or (with a body) through the draft.
   r.post("/api/translate/test", async (c) => {
-    const cfg = app.settings.all().translate;
+    const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+    const cfg = body && Object.keys(body).length ? draftSettings(app, body) : app.settings.all().translate;
     const started = Date.now();
     try {
-      const [text] = await translateBatch(cfg, ["The squirrel buries acorns in autumn and forgets half of them; the forgotten ones grow into the next forest."], cfg.targetLang);
-      return c.json({ ok: true, text, ms: Date.now() - started, model: cfg.model });
+      const info = await modelInfo(app, cfg);
+      const reply = await trySentence(cfg, info);
+      const text = (parseReply(reply.text, 1) ?? [reply.text.trim()])[0];
+      if (!text) throw new TranslateError("模型没有给出译文");
+      const out: ModelTest = { ok: true, text, ms: Date.now() - started, model: cfg.model, reasoned: reply.reasoned, reasoningTokens: reply.reasoningTokens, sent: reply.sent, info };
+      return c.json(out);
     } catch (err) {
-      if (err instanceof TranslateError) return c.json({ ok: false, error: err.message, ms: Date.now() - started }, 200);
+      if (err instanceof TranslateError) return c.json({ ok: false, error: err.message, ms: Date.now() - started, model: cfg.model } satisfies ModelTest, 200);
       throw err;
     }
   });
